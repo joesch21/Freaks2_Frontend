@@ -6,17 +6,17 @@
 
 // Address of the deployed FreakyFridayAuto contract (Freaks2).  Replace
 // this placeholder with your actual contract address after deployment.
-export const FREAKY_CONTRACT = '<YOUR_FREAKY_CONTRACT_ADDRESS>';
+export const FREAKY_CONTRACT = '0x2608f724dec63dEa893BC5380FF0e77E5C446480';
 
 // Address of the GCC token contract on Binance Smart Chain.  Replace this
 // placeholder with the official GCC token address on mainnet.
-export const GCC_TOKEN = '<YOUR_GCC_TOKEN_ADDRESS>';
+export const GCC_TOKEN = '0x092aC429b9c3450c9909433eB0662c3b7c13cF9A';
 
 // Address of your relayer wallet.  This constant is retained for
 // completeness, but note that approvals now target the game contract
 // directly.  You may still display the relayer address to users for
 // transparency or auditing purposes.
-export const FREAKY_RELAYER = '<YOUR_RELAYER_ADDRESS>';
+export const FREAKY_RELAYER = '0xd5422b7493e65c5b5cbfd70028df2D2ED8A39CDE';
 
 // Base URL of the backend API.  The frontend will call relative paths on
 // this host (e.g. `${BACKEND_URL}/relay-entry`).  Update this to match
