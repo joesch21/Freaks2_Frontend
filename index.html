@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Freaky Friday - GCC</title>
+
+  <!-- Fonts & CSS -->
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./freakyfriday.css"/>
+
+  <!-- Preload hero for faster LCP -->
+  <link rel="preload" as="image" href="./freaks.jpg" />
+</head>
+
+<body>
+  <!-- Spinner (optional, your existing JS toggles .hidden) -->
+  <div id="loader" class="hidden"><div class="spinner"></div></div>
+
+  <main class="stage">
+    <!-- Big scary poster -->
+    <figure class="poster" aria-hidden="true">
+      <img id="freakyPoster" src="./freaks.jpg" alt="" />
+      <div class="vignette"></div>
+
+      <!-- eye overlay (two glints) -->
+      <div class="eye-layer">
+        <span class="glint"></span>
+        <span class="halo"></span>
+      </div>
+
+      <figcaption class="sr-only">Freaky Friday — GCC ritual game</figcaption>
+    </figure>
+
+    <!-- Title floating over poster -->
+    <header class="heroTitle">
+      <h1 class="condor-title">🦅 Freaky Friday</h1>
+      <p class="subtext">A Weekly Ritual for Brave GCC Holders</p>
+    </header>
+
+    <!-- Right dock controls -->
+    <aside class="dock" role="region" aria-label="Join Freaky Friday">
+      <div class="dock-inner">
+        <button class="dock-handle" aria-expanded="true" aria-label="Toggle panel">
+        <span class="grip">⋮⋮</span>
+        <span class="label">Open in MetaMask (mobile)</span>
+        <span class="chev">▾</span>
+      </button>
+        <p id="metamaskLink" class="hidden">
+          <a id="deeplink" class="deeplink">📱 Open in MetaMask (mobile)</a>
+        </p>
+
+        <button id="connectBtn">🔗 Connect Wallet</button>
+        <button id="approveBtn" disabled>✅ Step 1: Approve 50 GCC to Contract</button>
+        <button id="joinBtn" disabled>🚀 Step 2: Join the Ritual</button>
+
+        <p id="status" class="status">⏳ Waiting for wallet connection...</p>
+        <p>Wallet: <span id="walletAddress">—</span></p>
+
+        <div class="vault">
+          <h3>📊 Ritual Vault</h3>
+          <p>GCC in contract: <span id="gccBalance">…</span></p>
+          <p>BNB in contract: <span id="bnbBalance">…</span></p>
+
+          <p>Mode: <span id="modeDisplay">…</span></p>
+
+          <p id="timerContainer" style="display:none;">
+            ⏱ Round ends in: <span id="countdown">00:00</span>
+          </p>
+          <p id="winnerContainer" style="display:none;">
+            🔮 Predicted Winner: <span id="predictedWinner">-</span>
+          </p>
+
+          <!-- Last winner display (updated dynamically via JS) -->
+          <p id="lastWinnerContainer" style="display:none;">
+            🥇 Last winner: <span id="lastWinnerAddr">…</span> (Round <span id="lastWinnerRound">…</span>)
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Participants rail -->
+    <section class="participants">
+      <h4>Players</h4>
+      <ul id="participantList"><li>Loading...</li></ul>
+    </section>
+
+   
+
+
+    <footer class="footer">
+      <p class="footer-note flicker">Built by the Condor Crew. Powered by GCC. Fueled by ritual.</p>
+    </footer>
+  </main>
+
+  <!-- Ethers + your app -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script type="module" src="./freakyfriday.js"></script>
+  <script type="module">
+  import { refreshLastWinner, subscribeLastWinner } from './winner.js';
+  window.addEventListener('DOMContentLoaded', () => {
+    // initial paint + live updates
+    refreshLastWinner().catch(console.error);
+    subscribeLastWinner();
+  });
+</script>
+
+  <!-- Heat‑warp SVG filter (hidden) -->
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="condorWiggle">
+      <feTurbulence type="fractalNoise" baseFrequency="0.003 0.006" numOctaves="2" seed="13" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
+  <!-- Parallax + Eye‑glint + Heartbeat -->
+  <script>
+  (() => {
+    const img = document.getElementById('freakyPoster');
+    const eye = document.querySelector('.eye-layer');
+    const stage = document.querySelector('.stage') || document.body;
+    const countdownEl = document.getElementById('countdown');
+    if (!img || !eye) return;
+
+    const rMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (rMotion) return;
+
+    // --- Parallax tilt + eye tracking ---
+    let targetRx = 0, targetRy = 0, rafId = null;
+    let currentRx = 0, currentRy = 0;
+    const lerp = (a,b,t)=>a+(b-a)*t, clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+
+    function updateEye(clientX, clientY) {
+    const r = img.getBoundingClientRect();
+
+    // Normalized pointer (0..1)
+    const nx = clientX == null ? 0.5 : (clientX - r.left) / r.width;
+    const ny = clientY == null ? 0.5 : (clientY - r.top) / r.height;
+
+    // Read base from CSS (so you can tweak without code)
+    const cs = getComputedStyle(eye);
+    const baseX = (parseFloat(cs.getPropertyValue('--eye-base-x')) || 46) / 100;
+    const baseY = (parseFloat(cs.getPropertyValue('--eye-base-y')) || 27) / 100;
+
+    // Small responsive offset around the base (subtle tracking)
+    const offsetX = (nx - 0.5) * 3.2;  // % of width
+    const offsetY = (ny - 0.5) * 2.6;  // % of height
+
+    eye.style.setProperty('--eye-left', `${(baseX*100) + offsetX}%`);
+    eye.style.setProperty('--eye-top',  `${(baseY*100) + offsetY}%`);
+  }
+
+
+    function onPointer(e){
+      const r = img.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      targetRy = clamp((x - 0.5) * 10, -6, 6);
+      targetRx = clamp((0.5 - y) * 6, -4, 4);
+      updateEye(e.clientX, e.clientY);
+      startRAF();
+    }
+
+    function onOrient(e){
+      const beta  = clamp(e.beta  || 0, -30, 30);
+      const gamma = clamp(e.gamma || 0, -30, 30);
+      targetRx = (beta / 30)  * 4;
+      targetRy = (gamma / 30) * 6;
+      updateEye();
+      startRAF();
+    }
+
+    function startRAF(){ if (!rafId) rafId = requestAnimationFrame(loop); }
+    function loop(){
+      currentRx = lerp(currentRx, targetRx, 0.08);
+      currentRy = lerp(currentRy, targetRy, 0.08);
+      img.style.transform =
+        `perspective(800px) rotateX(${currentRx}deg) rotateY(${currentRy}deg) scale(1.07)`;
+      if (Math.abs(currentRx-targetRx)>0.01 || Math.abs(currentRy-targetRy)>0.01) {
+        rafId = requestAnimationFrame(loop);
+      } else { rafId = null; }
+    }
+
+    window.addEventListener('mousemove', onPointer, { passive:true });
+    window.addEventListener('deviceorientation', onOrient, { passive:true });
+    updateEye(); // initial glint
+
+    // --- Heartbeat when countdown <= 60s ---
+    function parseCountdown(el){
+      if (!el) return null;
+      const m = el.textContent.match(/(\d{1,2}):(\d{2})/);
+      return m ? (+m[1])*60 + (+m[2]) : null;
+    }
+    function heartbeatCheck(){
+      const secs = parseCountdown(countdownEl);
+      if (secs == null) return;
+      if (secs <= 60) stage.classList.add('heartbeat');
+      else            stage.classList.remove('heartbeat');
+    }
+    setInterval(heartbeatCheck, 1000);
+  })();
+  </script>
+  <script>
+(() => {
+  const dock = document.querySelector('.dock');
+  const handle = document.querySelector('.dock-handle');
+  if (!dock || !handle) return;
+
+  const LS_POS = 'dockPos';
+  const LS_COL = 'dockCollapsed';
+
+  // --- Restore last state
+  const savedPos = localStorage.getItem(LS_POS) || 'bottom';
+  const savedCol = localStorage.getItem(LS_COL) === '1';
+  dock.classList.add('pos-' + (savedPos === 'top' ? 'top' : 'bottom'));
+  if (savedCol) { dock.classList.add('collapsed'); handle.setAttribute('aria-expanded', 'false'); }
+
+  // --- Click to collapse / expand
+  handle.addEventListener('click', () => {
+    const isCollapsed = dock.classList.toggle('collapsed');
+    handle.setAttribute('aria-expanded', String(!isCollapsed));
+    localStorage.setItem(LS_COL, isCollapsed ? '1' : '0');
+  });
+
+  // --- Click bottom/top corners of the handle to snap position
+  handle.addEventListener('dblclick', () => {
+    const toTop = !dock.classList.contains('pos-top');
+    dock.classList.toggle('pos-top', toTop);
+    dock.classList.toggle('pos-bottom', !toTop);
+    localStorage.setItem(LS_POS, toTop ? 'top' : 'bottom');
+  });
+
+  // --- Quick drag to snap (up = top, down = bottom)
+  let startY = 0, dragging = false;
+  const start = (y) => { startY = y; dragging = true; dock.classList.add('grabbing'); };
+  const move  = (y) => {
+    if (!dragging) return;
+    const delta = y - startY;
+    // Visual hint: translate a little while dragging
+    dock.style.transform = `translateY(${Math.max(-40, Math.min(40, delta/3))}px)`;
+  };
+  const end = (y) => {
+    if (!dragging) return;
+    dock.classList.remove('grabbing'); dock.style.transform = '';
+    const delta = y - startY;
+    if (Math.abs(delta) > 40) {
+      const toTop = delta < 0;
+      dock.classList.toggle('pos-top', toTop);
+      dock.classList.toggle('pos-bottom', !toTop);
+      localStorage.setItem(LS_POS, toTop ? 'top' : 'bottom');
+    }
+    dragging = false;
+  };
+
+  // Mouse + touch
+  handle.addEventListener('mousedown', e => start(e.clientY));
+  window.addEventListener('mousemove', e => move(e.clientY));
+  window.addEventListener('mouseup',   e => end(e.clientY));
+
+  handle.addEventListener('touchstart', e => start(e.touches[0].clientY), { passive: true });
+  window.addEventListener('touchmove',  e => move(e.touches[0].clientY),  { passive: true });
+  window.addEventListener('touchend',   e => end((e.changedTouches[0]||{}).clientY), { passive: true });
+
+  // --- Auto-hide on scroll down, show on scroll up
+  let lastY = window.scrollY;
+  dock.classList.add('autohide');
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    const down = y > lastY;
+    dock.classList.toggle('hide', down && !dock.classList.contains('collapsed'));
+    lastY = y;
+  }, { passive: true });
+
+})();
+</script>
+
+</body>
+</html>
