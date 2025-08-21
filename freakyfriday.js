@@ -7,10 +7,9 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, GCC_TOKEN, BACKEND_URL } from './frontendinfo.js';
-import { connectWallet, byId, setStatus, provider, gameContract } from './frontendcore.js';
+import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
+import { connectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
 import { maybeShowTimer } from './frontendtimer.js';
-import erc20Abi from './erc20Abi.js';
 
 let entryAmount;
 
@@ -91,7 +90,6 @@ async function connectMetaMask() {
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
 
     // User GCC balance check
-    const gccRead = new ethers.Contract(GCC_TOKEN, erc20Abi, provider);
     const balance = await gccRead.balanceOf(userAddress);
     if (balance < entryAmount) {
       setStatus('❌ Insufficient GCC balance for entry (need 50 GCC).');
@@ -139,15 +137,13 @@ async function handleApprove() {
 }
 
 async function checkAndApprove() {
-  const signer = await provider.getSigner();
-  const addr = await signer.getAddress();
-  const gcc = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
-  const allowance = await gcc.allowance(addr, FREAKY_CONTRACT);
+  const addr = connectedAddr;
+  const allowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
 
   if (allowance < entryAmount) {
     setStatus('🔐 Approving contract...');
     // Users must approve the game contract directly.  The relayer no longer holds tokens.
-    const tx = await gcc.approve(FREAKY_CONTRACT, entryAmount);
+    const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
     await tx.wait();
     setStatus('✅ Approved');
   } else {
