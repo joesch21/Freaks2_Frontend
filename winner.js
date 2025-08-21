@@ -1,5 +1,5 @@
 // winner.js
-import { gameContract } from './frontendcore.js';
+import { gameRead } from './frontendcore.js';
 
 const $ = (id) => document.getElementById(id);
 const ZERO = '0x0000000000000000000000000000000000000000';
@@ -21,29 +21,29 @@ function setWinnerUI(addr, round) {
 
 // Fetch the last resolved round’s winner (no server storage needed)
 export async function refreshLastWinner() {
-  if (!gameContract) return;
+  if (!gameRead) return;
 
   // ethers v6 returns BigInt for uint256
-  const current = await gameContract.currentRound(); // BigInt
+  const current = await gameRead.currentRound(); // BigInt
   if (current === 0n) { setWinnerUI(null, 0); return; }
 
   // If a round is active, the “last” resolved one is current-1
-  const active = await gameContract.isRoundActive();
+  const active = await gameRead.isRoundActive();
   const lastRound = active ? (current - 1n) : current;
 
   if (lastRound <= 0n) { setWinnerUI(null, 0); return; }
 
   // Direct contract read — no logs, no server
-  const winner = await gameContract.winnerOfRound(lastRound);
+  const winner = await gameRead.winnerOfRound(lastRound);
   setWinnerUI(winner, lastRound);
 }
 
 // Live updates when a new round completes
 export function subscribeLastWinner() {
-  if (!gameContract) return;
+  if (!gameRead) return;
 
   // RoundCompleted(address winner, uint256 round)
-  gameContract.on('RoundCompleted', (winner, round) => {
+  gameRead.on('RoundCompleted', (winner, round) => {
     try {
       // round is BigInt in ethers v6
       setWinnerUI(winner, round);

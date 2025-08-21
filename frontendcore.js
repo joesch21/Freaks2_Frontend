@@ -14,11 +14,17 @@ export function setStatus(msg) {
 }
 
 // ---- Runtime state (populated on connect) ----
+// Read-only provider and contracts (available even before wallet connection)
+export const rpcProvider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
+export const gameRead = new ethers.Contract(FREAKY_CONTRACT, freakyFridayGameAbi, rpcProvider);
+export const gccRead = new ethers.Contract(GCC_TOKEN, erc20Abi, rpcProvider);
+
+// Runtime state populated after wallet connection
 export let provider;
 export let signer;
 export let userAddress;
-export let gameContract;
-export let gccContract;
+export let gameContract; // write-enabled contract
+export let gccWrite;
 
 // ---- Small utils ----
 const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
@@ -73,7 +79,7 @@ export async function attachWinnerListener() {
 
 /**
  * Connect wallet, initialize contracts, and start listeners.
- * @returns {{provider: ethers.BrowserProvider, signer: ethers.Signer, userAddress: string, gameContract: ethers.Contract, gccContract: ethers.Contract}}
+ * @returns {{provider: ethers.BrowserProvider, signer: ethers.Signer, userAddress: string, gameContract: ethers.Contract, gccWrite: ethers.Contract, gccRead: ethers.Contract}}
  */
 export async function connectWallet() {
   if (!window.ethereum) {
@@ -90,7 +96,7 @@ export async function connectWallet() {
 
   // Initialize contracts with signer
   gameContract = new ethers.Contract(FREAKY_CONTRACT, freakyFridayGameAbi, signer);
-  gccContract = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
+  gccWrite = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
 
   // Start live + backfill winner announcements
   try {
@@ -99,7 +105,7 @@ export async function connectWallet() {
     console.warn('attachWinnerListener error:', e);
   }
 
-  return { provider, signer, userAddress, gameContract, gccContract };
+  return { provider, signer, userAddress, gameContract, gccWrite, gccRead };
 }
 
 // Keep relayer constant available to other modules
