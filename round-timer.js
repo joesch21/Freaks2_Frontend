@@ -18,7 +18,7 @@ export async function initRoundTimer(joinBtnId = "joinBtn") {
   const provider = new ethers.BrowserProvider(window.ethereum);
   const game = new ethers.Contract(FREAKY_CONTRACT, gameAbi, provider);
   const joinBtn = document.getElementById(joinBtnId);
-  const bar = $("ff-progress-bar"), label = $("ff-time-label"), left = $("ff-time-left");
+  const bar = $("ff-progress-bar"), label = $("ff-time-label"), left = $("countdown");
 
   async function refresh() {
     try {

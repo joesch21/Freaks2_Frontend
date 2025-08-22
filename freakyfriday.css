@@ -9,9 +9,35 @@
 }
 
 html, body {
+  height: 100%;
+  margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  color: #f5f7ff; /* brighter default text */
 }
+
+body {
+  min-height: 100svh;
+  background: #0b0b0b;
+  color: #eee;
+}
+
+.container {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.actions,
+.participants-box {
+  overflow: visible;
+}
+
+body, .container {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+button { touch-action: manipulation; }
 
 /* Title: readable horror vibe (outline to pop on bright image) */
 .condor-title {
@@ -339,7 +365,7 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-drawer-overlay.show{opacity:1;pointer-events:auto}
 
 /* Participant list */
-.ff-participants{padding:10px 8px 80px;overflow:auto;flex:1}
+.ff-participants{padding:10px 8px 80px;overflow:auto;flex:1;list-style:none;margin:0}
 .ff-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:#121722;border:1px solid #1c2230;margin:6px 8px}
 .ff-ava{width:28px;height:28px;border-radius:8px;background:#20293a;display:grid;place-items:center;color:#9fb3ff;font-weight:700}
 .ff-addr{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:.92rem;color:#dbe3f3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
