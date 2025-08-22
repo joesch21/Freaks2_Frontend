@@ -162,7 +162,7 @@ async function connectMetaMask() {
     // Already joined?
     const parts = await gameContract.getParticipants();
     if (parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase())) {
-      setStatus('✅ Already joined this round');
+      setStatus('<span class="ff-joined-badge">✅ Already joined this round</span>');
       hide('approveBtn'); hide('joinBtn');
       // Still attach live winner listeners for UI updates.
       attachWinnerListenerLocal();
