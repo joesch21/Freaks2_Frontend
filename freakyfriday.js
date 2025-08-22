@@ -26,8 +26,8 @@ async function loadPredictedWinner() {
   try {
     // Ensure both the provider and gameContract are available (set on connect).
     if (!provider || !gameContract) return;
-    // Build a filter for the RoundCompleted event (winner, round).
-    const filter = gameContract.filters.RoundCompleted(null, null);
+    // Build a filter for the RoundCompleted event.
+    const filter = gameContract.filters.RoundCompleted();
     const toBlock = await provider.getBlockNumber();
     const fromBlock = Math.max(1, toBlock - 200000);
     const logs = await gameContract.queryFilter(filter, fromBlock, toBlock);
@@ -51,7 +51,7 @@ async function loadPredictedWinner() {
 function attachPredictedWinnerListener() {
   if (!gameContract) return;
   try {
-    gameContract.on('RoundCompleted', (winner /* address */, round /* BigInt */) => {
+    gameContract.on('RoundCompleted', (winner /* address */, round /* BigInt */, prizePaid, refundPerPlayerFinal) => {
       const cont   = document.getElementById('winnerContainer');
       const predEl = document.getElementById('predictedWinner');
       if (cont && predEl) {
@@ -73,6 +73,10 @@ const show = (id) => { const e = el(id); if (e) e.style.display = ''; };
 const hide = (id) => { const e = el(id); if (e) e.style.display = 'none'; };
 const short = (a) => (a ? `${a.slice(0,6)}…${a.slice(-4)}` : '');
 const bscScanTx = (txHash) => `https://bscscan.com/tx/${txHash}`;
+const showStatus = (lines) => {
+  const s = el('status');
+  if (s) s.innerHTML = Array.isArray(lines) ? lines.join('<br/>') : lines;
+};
 
 /* ---------- Loader ---------- */
 function showLoader(){ el('loader')?.classList?.remove('hidden'); }
@@ -83,10 +87,12 @@ function initApp() {
   hideLoader();
   el('approveBtn').disabled = true;
   el('joinBtn').disabled = true;
+  el('claimBtn')?.setAttribute('disabled','');
 
   el('connectBtn').addEventListener('click', connectMetaMask);
   el('approveBtn').addEventListener('click', handleApprove);
   el('joinBtn').addEventListener('click', relayJoin);
+  el('claimBtn')?.addEventListener('click', claimRefund);
 
   // Mobile deep link hint
   const mmLink = el('metamaskLink');
@@ -161,6 +167,7 @@ async function connectMetaMask() {
       // Still attach live winner listeners for UI updates.
       attachWinnerListenerLocal();
       attachPredictedWinnerListener();
+      attachRoundCompletedListener();
       await loadPredictedWinner();
       return;
     }
@@ -171,6 +178,7 @@ async function connectMetaMask() {
     attachWinnerListenerLocal();
     // Predicted winner backfill + live listener
     attachPredictedWinnerListener();
+    attachRoundCompletedListener();
     await loadPredictedWinner();
   } catch (err) {
     console.error(err);
@@ -218,7 +226,7 @@ async function relayJoin() {
     setStatus('🚀 Joining ritual...');
     const signer = await provider.getSigner();
     const addr = await signer.getAddress();
-    // Call backend join endpoint which returns both enter and refund tx hashes
+    // Call backend join endpoint which returns enter tx hash
     const resp = await fetch(`${BACKEND_URL}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -229,18 +237,12 @@ async function relayJoin() {
       throw new Error(json?.error || 'Join failed');
     }
 
-    const { enterTxHash, refundTxHash } = json;
-    const enterLink  = `https://bscscan.com/tx/${enterTxHash}`;
-    const refundLink = refundTxHash ? `https://bscscan.com/tx/${refundTxHash}` : null;
-
-    const msg = [
-      `Refund sent: <b>50 GCC (gross)</b>.`,
-      `Because GCC has a transfer fee, you’ll receive <b>~49 GCC</b>. That’s expected.`,
-      `<a href="${enterLink}" target="_blank" rel="noopener">View Join Tx</a>`,
-      refundLink ? `<a href="${refundLink}" target="_blank" rel="noopener">View Refund Tx</a>` : `Refund tx pending…`
-    ].join('<br/>');
-
-    document.getElementById('status').innerHTML = msg;
+    const { enterTxHash } = json;
+    showStatus([
+      `You're in!`,
+      `<a target="_blank" href="https://bscscan.com/tx/${enterTxHash}">View Join Tx</a>`,
+      `Refunds (Standard mode) are available after the round closes.`
+    ]);
     await refreshAll();
   } catch (e) {
     console.error(e);
@@ -363,7 +365,7 @@ function attachWinnerListenerLocal() {
 
   // Live event
   try {
-    gameContract.on('RoundCompleted', (winner, round, ev) => {
+    gameContract.on('RoundCompleted', (winner, round, prizePaid, refundPerPlayerFinal, ev) => {
       const tx = ev?.log?.transactionHash ?? null;
       if (el('winnerAddr')) el('winnerAddr').textContent = `${short(winner)} (Round ${Number(round)})`;
       if (tx && el('winnerTxLink')) { el('winnerTxLink').href = bscScanTx(tx); el('winnerTxLink').style.display = ''; }
@@ -390,4 +392,50 @@ function attachWinnerListenerLocal() {
       // silent
     }
   })();
+}
+
+function attachRoundCompletedListener() {
+  if (!gameContract) return;
+
+  const update = (winner, round, prizePaid, refundPerPlayerFinal) => {
+    text('lastWinner', winner);
+    text('prize', `${ethers.formatUnits(prizePaid, 18)} GCC`);
+    text('refund', `${ethers.formatUnits(refundPerPlayerFinal, 18)} GCC per player`);
+    window.currentClosedRound = Number(round);
+    el('claimBtn')?.removeAttribute('disabled');
+  };
+
+  try {
+    gameContract.on('RoundCompleted', update);
+  } catch (e) {
+    console.warn('RoundCompleted listener setup failed', e);
+  }
+
+  (async () => {
+    try {
+      const filter = gameContract.filters.RoundCompleted();
+      const events = await gameContract.queryFilter(filter, -5000);
+      if (events.length) {
+        update(...events[events.length - 1].args);
+      }
+    } catch (e) {
+      // silent
+    }
+  })();
+}
+
+async function claimRefund() {
+  showLoader();
+  try {
+    const signer = await provider.getSigner();
+    const gameW = gameContract.connect(signer);
+    const tx = await gameW.claimRefund(window.currentClosedRound);
+    const r = await tx.wait();
+    showStatus([`Refund claimed.`, `<a target="_blank" href="https://bscscan.com/tx/${r?.hash || tx.hash}">View Tx</a>`]);
+  } catch (e) {
+    console.error(e);
+    showStatus(`❌ ${e?.message || 'Refund claim failed'}`);
+  } finally {
+    hideLoader();
+  }
 }

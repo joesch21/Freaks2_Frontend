@@ -2,7 +2,7 @@
 
 // ---- Imports ----
 import { FREAKY_CONTRACT, GCC_TOKEN, FREAKY_RELAYER } from './frontendinfo.js';
-import freakyFridayGameAbi from './freakyFridayGameAbi.js';
+import freakyFridayGameAbi from './abi/freakyFridayGameAbi.js';
 import erc20Abi from './erc20Abi.js';
 
 // ---- DOM helpers ----
@@ -55,7 +55,7 @@ export async function attachWinnerListener() {
 
   // Live updates via event
   try {
-    gameContract.on('RoundCompleted', (winner, round, ev) => {
+    gameContract.on('RoundCompleted', (winner, round, prizePaid, refundPerPlayerFinal, ev) => {
       const tx = ev?.log?.transactionHash ?? null;
       updateWinnerBar({ winner, round, tx });
     });

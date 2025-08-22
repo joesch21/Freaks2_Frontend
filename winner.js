@@ -42,8 +42,8 @@ export async function refreshLastWinner() {
 export function subscribeLastWinner() {
   if (!gameRead) return;
 
-  // RoundCompleted(address winner, uint256 round)
-  gameRead.on('RoundCompleted', (winner, round) => {
+  // RoundCompleted(address winner, uint256 round, uint256 prizePaid, uint256 refundPerPlayerFinal)
+  gameRead.on('RoundCompleted', (winner, round, prizePaid, refundPerPlayerFinal) => {
     try {
       // round is BigInt in ethers v6
       setWinnerUI(winner, round);
