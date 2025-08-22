@@ -21,7 +21,7 @@ export const FREAKY_RELAYER = '0xd5422b7493e65c5b5cbfd70028df2D2ED8A39CDE';
 // Base URL of the backend API.  The frontend will call relative paths on
 // this host (e.g. `${BACKEND_URL}/relay-entry`).  Update this to match
 // your deployed backend service (for local testing, use http://localhost:3000).
-export const BACKEND_URL = 'http://localhost:3000';
+export const BACKEND_URL = 'https://freak2backend.onrender.com';
 
 // No helper functions are defined here.  See freakyfriday.js for UI update
 // logic.
