@@ -10,7 +10,7 @@ export const byId = (id) => document.getElementById(id);
 
 export function setStatus(msg) {
   const statusEl = byId('status');
-  if (statusEl) statusEl.innerText = msg ?? '';
+  if (statusEl) statusEl.innerHTML = msg ?? '';
 }
 
 // ---- Runtime state (populated on connect) ----

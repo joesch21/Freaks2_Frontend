@@ -42,6 +42,28 @@
       <p class="subtext">A Weekly Ritual for Brave GCC Holders</p>
     </header>
 
+    <!-- Action to open drawer -->
+    <button id="ff-open-participants" class="ff-btn">
+      👥 Participants <span id="ff-participant-count" class="ff-chip">0</span>
+    </button>
+
+    <!-- Left off-canvas drawer -->
+    <aside id="ff-drawer" class="ff-drawer" aria-hidden="true">
+      <div class="ff-drawer-header">
+        <h3>Participants</h3>
+        <button id="ff-close-participants" class="ff-icon-btn" aria-label="Close">✖</button>
+      </div>
+
+      <div id="ff-participants-list" class="ff-participants"></div>
+
+      <div class="ff-drawer-footer">
+        <button id="ff-refresh-participants" class="ff-btn-secondary">Refresh</button>
+      </div>
+    </aside>
+
+    <!-- Dim overlay behind the drawer -->
+    <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
+
     <!-- Right dock controls -->
     <aside class="dock" role="region" aria-label="Join Freaky Friday">
       <div class="dock-inner">
@@ -88,12 +110,6 @@
       </div>
     </aside>
 
-    <!-- Participants rail -->
-    <section class="participants">
-      <h4>Players</h4>
-      <ul id="participantList"><li>Loading...</li></ul>
-    </section>
-
     <!-- optional: small invisible debug slot for contract/relayer -->
     <pre id="debug" style="display:none"></pre>
 
@@ -108,6 +124,7 @@
   <!-- Ethers + your app -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
   <script type="module" src="./freakyfriday.js"></script>
+  <script type="module" src="./participants-drawer.js"></script>
   <script type="module">
   import { refreshLastWinner, subscribeLastWinner } from './winner.js';
   window.addEventListener('DOMContentLoaded', () => {
