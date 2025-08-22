@@ -105,6 +105,11 @@ export async function connectWallet() {
     console.warn('attachWinnerListener error:', e);
   }
 
+  // Hide mobile sticky connect bar if present
+  if (window.__ffux && typeof window.__ffux.hideSticky === 'function') {
+    window.__ffux.hideSticky();
+  }
+
   return { provider, signer, userAddress, gameContract, gccWrite, gccRead };
 }
 
