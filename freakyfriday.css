@@ -230,7 +230,7 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 
 /* Spinner (basic) */
 #loader { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.45); z-index: 9; }
-#loader.hidden { display: none; }
+#loader.hidden { display: none !important; pointer-events: none !important; opacity: 0 !important; }
 .spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -396,3 +396,34 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-progress{height:8px;background:#1b2332;border-radius:999px;overflow:hidden;border:1px solid #243149}
 #ff-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#1f8bff,#6dd5fa)}
 .ff-join-disabled{opacity:.6;pointer-events:none}
+
+/* --- Sticky connect bar --- */
+.sticky-connect {
+  position: sticky;
+  bottom: 0;
+  inset-inline: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  background: rgba(10,10,10,.9);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+.sticky-connect.hidden { display: none; }
+.sticky-connect .btn.primary {
+  font-size: 16px;
+  padding: 12px 18px;
+}
+.sticky-connect .deeplink {
+  font-size: 14px;
+  text-decoration: underline;
+  opacity: .9;
+}
+
+/* Slightly tighter spacing on very small screens so CTAs stay in view */
+@media (max-height: 640px) {
+  .hero, .intro, .actions { margin-block-end: 8px; }
+}
