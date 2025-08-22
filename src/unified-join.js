@@ -51,6 +51,19 @@ export async function unifiedJoin() {
     const user = await signer.getAddress();
     const game = new ethers.Contract(FREAKY_CONTRACT, gameAbi, provider);
 
+    // Round gating preflight
+    const [roundStartBN, durationBN] = await Promise.all([game.roundStart(), game.duration()]);
+    const roundStart = Number(roundStartBN);
+    const duration   = Number(durationBN);
+    const now = Math.floor(Date.now() / 1000);
+
+    if (roundStart === 0 && window.FF_GATE_JOIN_UNTIL_ACTIVE) {
+      throw new Error("Round not active yet.");
+    }
+    if (roundStart > 0 && now >= (roundStart + duration)) {
+      throw new Error("Round window ended; waiting for close.");
+    }
+
     // 2) Read entry from chain (no magic numbers)
     const entry = await game.entryAmount();
 

@@ -42,28 +42,6 @@
       <p class="subtext">A Weekly Ritual for Brave GCC Holders</p>
     </header>
 
-    <!-- Action to open drawer -->
-    <button id="ff-open-participants" class="ff-btn">
-      👥 Participants <span id="ff-participant-count" class="ff-chip">0</span>
-    </button>
-
-    <!-- Left off-canvas drawer -->
-    <aside id="ff-drawer" class="ff-drawer" aria-hidden="true">
-      <div class="ff-drawer-header">
-        <h3>Participants</h3>
-        <button id="ff-close-participants" class="ff-icon-btn" aria-label="Close">✖</button>
-      </div>
-
-      <div id="ff-participants-list" class="ff-participants"></div>
-
-      <div class="ff-drawer-footer">
-        <button id="ff-refresh-participants" class="ff-btn-secondary">Refresh</button>
-      </div>
-    </aside>
-
-    <!-- Dim overlay behind the drawer -->
-    <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
-
     <!-- Right dock controls -->
     <aside class="dock" role="region" aria-label="Join Freaky Friday">
       <div class="dock-inner">
@@ -95,9 +73,26 @@
 
           <p>Mode: <span id="modeDisplay">…</span></p>
 
-          <p id="timerContainer" style="display:none;">
-            ⏱ Round ends in: <span id="countdown">00:00</span>
-          </p>
+          <!-- Player count row -->
+          <div class="ff-stats">
+            <span class="ff-pill"><strong id="ff-player-count">0</strong> players</span>
+            <button id="ff-open-participants" class="ff-link" style="display:inline-block">View list</button>
+          </div>
+
+          <!-- Friendlier already-joined badge -->
+          <span id="ff-joined-badge" class="ff-joined-badge" style="display:none">✅ Already joined this round</span>
+
+          <!-- Timer + progress bar -->
+          <div class="ff-timer">
+            <div class="ff-timer-row">
+              <span id="ff-time-label">Round ends in:</span>
+              <span id="ff-time-left">—</span>
+            </div>
+            <div class="ff-progress">
+              <div id="ff-progress-bar"></div>
+            </div>
+          </div>
+
           <p id="winnerContainer" style="display:none;">
             🔮 Predicted Winner: <span id="predictedWinner">-</span>
           </p>
@@ -121,10 +116,36 @@
     </footer>
   </main>
 
+  <!-- Left off-canvas drawer -->
+  <aside id="ff-drawer" class="ff-drawer" aria-hidden="true">
+    <div class="ff-drawer-header">
+      <h3>Participants</h3>
+      <button id="ff-close-participants" class="ff-icon-btn" aria-label="Close">✖</button>
+    </div>
+    <div id="ff-participants-list" class="ff-participants"></div>
+    <div class="ff-drawer-footer">
+      <button id="ff-refresh-participants" class="ff-btn-secondary">Refresh</button>
+    </div>
+  </aside>
+
+  <!-- Dim overlay -->
+  <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
+
   <!-- Ethers + your app -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "ethers": "https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.min.js"
+    }
+  }
+  </script>
   <script type="module" src="./freakyfriday.js"></script>
   <script type="module" src="./participants-drawer.js"></script>
+  <script type="module">
+    import { initRoundTimer } from './round-timer.js';
+    initRoundTimer('joinBtn');
+  </script>
   <script type="module">
   import { refreshLastWinner, subscribeLastWinner } from './winner.js';
   window.addEventListener('DOMContentLoaded', () => {
