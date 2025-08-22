@@ -35,18 +35,18 @@ async function loadParticipants() {
     el("ff-participant-count") && (el("ff-participant-count").textContent = list.length ?? 0);
     el("ff-player-count") && (el("ff-player-count").textContent = list.length ?? 0);
 
-    const wrap = el("ff-participants-list");
+    const wrap = el("participantList");
     if (!wrap) return;
     wrap.innerHTML = "";
 
     if (!list || !list.length) {
-      wrap.innerHTML = `<div class="ff-row">No one has joined yet. Be the first!</div>`;
+      wrap.innerHTML = `<li class="ff-row">No one has joined yet. Be the first!</li>`;
       return;
     }
 
     list.forEach((addr) => {
       const a = addr.toLowerCase();
-      const row = document.createElement("div");
+      const row = document.createElement("li");
       row.className = "ff-row";
       row.innerHTML = `
         <div class="ff-ava">${short(a).slice(2,3).toUpperCase()}</div>

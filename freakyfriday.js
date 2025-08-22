@@ -3,12 +3,13 @@
 // - Consistent IDs: gccBalance, bnbBalance, participantList, countdown
 // - Updates both GCC & BNB balances
 // - Attaches winner listener + backfill (RoundCompleted)
-// - One-click approve+join via relayer
+// - Separate approve/join flow with allowance checks
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
 import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
 import { connectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
+import { mountLastWinner } from './winner.js';
 
 // -----------------------------------------------------------------------------
 // Predicted winner helpers
@@ -144,6 +145,8 @@ async function connectMetaMask() {
     setStatus(`🔗 Connected: ${userAddress}`);
     text('walletAddress', userAddress);
 
+    await mountLastWinner(provider);
+
     // Entry amount (fallback to 50 GCC if view not present)
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
 
@@ -151,22 +154,25 @@ async function connectMetaMask() {
     const balance = await gccRead.balanceOf(userAddress);
     if (balance < entryAmount) {
       setStatus('❌ Insufficient GCC balance for entry (need 50 GCC).');
-      hide('approveBtn'); hide('joinBtn');
-      await refreshReadOnly(); // still show stats
+      el('approveBtn').disabled = true;
+      el('joinBtn').disabled = true;
+      await refreshReadOnly();
       return;
     }
 
-    await refreshAll(); // participants, balances, timer
+    await refreshAll();
 
-    // Already joined?
+    const allowance = await gccRead.allowance(userAddress, FREAKY_CONTRACT);
+
     const parts = await gameContract.getParticipants();
     const joinedBadge = document.getElementById('ff-joined-badge');
     const already = parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase());
     if (joinedBadge) joinedBadge.style.display = already ? 'inline-flex' : 'none';
     if (already) {
       setStatus('');
-      hide('approveBtn'); hide('joinBtn');
-      // Still attach live winner listeners for UI updates.
+      const jb = el('joinBtn');
+      if (jb) { jb.disabled = true; jb.textContent = '✅ Already Joined'; }
+      el('approveBtn').disabled = true;
       attachWinnerListenerLocal();
       attachPredictedWinnerListener();
       attachRoundCompletedListener();
@@ -174,11 +180,17 @@ async function connectMetaMask() {
       return;
     }
 
-    el('approveBtn').disabled = false;
+    const approveBtn = el('approveBtn');
+    const joinBtn = el('joinBtn');
+    if (allowance < entryAmount) {
+      if (approveBtn) approveBtn.disabled = false;
+      if (joinBtn) joinBtn.disabled = true;
+    } else {
+      if (approveBtn) approveBtn.disabled = true;
+      if (joinBtn) joinBtn.disabled = false;
+    }
 
-    // Winner banner live + backfill
     attachWinnerListenerLocal();
-    // Predicted winner backfill + live listener
     attachPredictedWinnerListener();
     attachRoundCompletedListener();
     await loadPredictedWinner();
@@ -194,32 +206,27 @@ async function connectMetaMask() {
 async function handleApprove() {
   showLoader();
   try {
-    await checkAndApprove();
-    setStatus('🚀 Approval done, joining...');
-    await relayJoin();
-    hide('joinBtn'); hide('approveBtn');
+    const addr = connectedAddr;
+    const allowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
+    if (allowance < entryAmount) {
+      setStatus('🔐 Approving contract...');
+      const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
+      await tx.wait();
+      setStatus('✅ Approved');
+    } else {
+      setStatus('✅ Already approved');
+    }
+    const newAllowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
+    if (newAllowance >= entryAmount) {
+      el('joinBtn').disabled = false;
+      el('approveBtn').disabled = true;
+    }
   } catch (e) {
     console.error(e);
     setStatus(`❌ ${e?.message || 'Approval failed'}`);
   } finally {
     hideLoader();
   }
-}
-
-async function checkAndApprove() {
-  const addr = connectedAddr;
-  const allowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
-
-  if (allowance < entryAmount) {
-    setStatus('🔐 Approving contract...');
-    // Users must approve the game contract directly.  The relayer no longer holds tokens.
-    const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
-    await tx.wait();
-    setStatus('✅ Approved');
-  } else {
-    setStatus('✅ Already approved');
-  }
-  el('joinBtn').disabled = false;
 }
 
 async function relayJoin() {
@@ -245,6 +252,9 @@ async function relayJoin() {
       `<a target="_blank" href="https://bscscan.com/tx/${enterTxHash}">View Join Tx</a>`,
       `Refunds (Standard mode) are available after the round closes.`
     ]);
+    el('approveBtn').disabled = true;
+    const jb = el('joinBtn');
+    if (jb) { jb.disabled = true; jb.textContent = '✅ Already Joined'; }
     await refreshAll();
   } catch (e) {
     console.error(e);
@@ -257,18 +267,14 @@ async function relayJoin() {
 /* ---------- Read/UI helpers ---------- */
 async function refreshAll() {
   await Promise.all([
-    showParticipants(),
     updateContractBalances(),
-    updateModeDisplay(),
-    showLastWinner()
+    updateModeDisplay()
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
-    showParticipants(),
-    updateModeDisplay(),
-    showLastWinner()
+    updateModeDisplay()
   ]);
 }
 
@@ -284,22 +290,6 @@ async function updateModeDisplay() {
     modeEl.innerText = m === 0 ? 'Standard Ritual' : m === 1 ? 'Jackpot' : String(m);
   } catch (e) {
     console.warn('Mode load failed', e);
-  }
-}
-
-async function showParticipants() {
-  try {
-    const players = await gameContract.getParticipants();
-    const list = el('participantList');
-    if (!list) return;
-    list.innerHTML = '';
-    players.forEach((a, i) => {
-      const li = document.createElement('li');
-      li.innerText = `#${i + 1}: ${a}`;
-      list.appendChild(li);
-    });
-  } catch (e) {
-    console.warn('Participants load failed', e);
   }
 }
 
@@ -328,36 +318,6 @@ async function updateContractBalances() {
 }
 
 /* ---------- Last winner display ---------- */
-async function showLastWinner() {
-  try {
-    if (!gameContract) return;
-    // Determine the most recent resolved round.  If the current round is active, use currentRound - 1; otherwise currentRound.
-    const currentRound = await gameContract.currentRound();
-    const isActive = await gameContract.isRoundActive();
-    let lastRound = Number(currentRound);
-    if (isActive) lastRound = lastRound - 1;
-    const container = document.getElementById('lastWinnerContainer');
-    if (!container) return;
-    if (!lastRound || lastRound <= 0) {
-      container.style.display = 'none';
-      return;
-    }
-    const winner = await gameContract.winnerOfRound(lastRound);
-    // Hide if no winner recorded (address zero)
-    if (!winner || winner === '0x0000000000000000000000000000000000000000') {
-      container.style.display = 'none';
-      return;
-    }
-    container.style.display = '';
-    const addrEl = document.getElementById('lastWinnerAddr');
-    const roundEl = document.getElementById('lastWinnerRound');
-    if (addrEl) addrEl.innerText = short(winner);
-    if (roundEl) roundEl.innerText = String(lastRound);
-  } catch (e) {
-    console.warn('Last winner load failed', e);
-  }
-}
-
 
 /* ---------- Winner banner (local listener + backfill) ---------- */
 function attachWinnerListenerLocal() {
