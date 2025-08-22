@@ -11,28 +11,45 @@ import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
-// --- Mobile detection & deeplink helpers ---
-function isMobile() {
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
+// --- Environment detection ---
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isMetaMaskInApp = navigator.userAgent.includes('MetaMaskMobile') || (window.ethereum?.isMetaMask === true);
 
-function isInMetaMask() {
-  return (window.ethereum && window.ethereum.isMetaMask) || /MetaMaskMobile/i.test(navigator.userAgent);
-}
-
-function currentPageURL() {
-  return window.location.origin + window.location.pathname;
-}
-
-function openInMetaMaskDeeplink() {
-  const dapp = encodeURIComponent(currentPageURL());
-  const universal = `https://metamask.app.link/dapp/${dapp}`;
-  window.location.href = universal;
+function ensureInMetaMask() {
+  if (!isMobile || isMetaMaskInApp) return false;
+  sessionStorage.setItem('cameFromDeepLink', '1');
+  const MM = `https://metamask.app.link/dapp/freaks2-frontend.onrender.com/`;
+  window.location.href = MM;
   setTimeout(() => {
-    const scheme = `metamask://dapp/${dapp}`;
-    window.location.href = scheme;
-  }, 600);
+    if (!navigator.userAgent.includes('MetaMaskMobile') && !window.ethereum?.isMetaMask) {
+      window.location.assign(MM);
+    }
+  }, 1200);
+  return true;
 }
+
+function markConnectedUI() {
+  for (const id of ['connectBtn', 'connectSticky']) {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = true; btn.textContent = 'Connected'; }
+  }
+}
+
+(function showMetaMaskHintOnce() {
+  try {
+    if (!isMetaMaskInApp) return;
+    if (sessionStorage.getItem('cameFromDeepLink') === '1') {
+      const mount = document.getElementById('mmHintMount') || document.body;
+      const node = document.createElement('div');
+      node.id = 'mmHint';
+      node.className = 'mm-hint';
+      node.textContent = "You're in MetaMask. Tap Connect again to activate your wallet.";
+      mount.parentNode.insertBefore(node, mount.nextSibling);
+      sessionStorage.removeItem('cameFromDeepLink');
+      setTimeout(() => node.remove(), 6000);
+    }
+  } catch {}
+})();
 
 // -----------------------------------------------------------------------------
 // Predicted winner helpers
@@ -174,13 +191,11 @@ async function ensureBscMainnet() {
 }
 
 /* ---------- Connect flow ---------- */
-async function connectWallet() {
+export async function connectWallet() {
+  // If not in MetaMask's in-app browser on mobile, deep-link and bail
+  if (ensureInMetaMask()) return;
   try {
     if (!window.ethereum) {
-      if (isMobile() && !isInMetaMask()) {
-        openInMetaMaskDeeplink();
-        return;
-      }
       throw new Error('No Ethereum provider found.');
     }
 
@@ -190,6 +205,7 @@ async function connectWallet() {
     const { userAddress } = await coreConnectWallet();
     setStatus(`🔗 Connected: ${userAddress}`);
     text('walletAddress', userAddress);
+    markConnectedUI();
 
     await mountLastWinner(provider);
 
@@ -454,44 +470,18 @@ async function claimRefund() {
 }
 
 // --- Event wiring for connect / deeplink buttons ---
-window.addEventListener('DOMContentLoaded', () => {
-  const openInMMTop = document.getElementById('openInMMTop');
-  if (openInMMTop) {
-    openInMMTop.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (!isInMetaMask() && isMobile()) {
-        openInMetaMaskDeeplink();
-      } else {
-        connectWallet();
-      }
-    });
-  }
-
-  const connectBtn = document.getElementById('connectBtn');
-  if (connectBtn) connectBtn.addEventListener('click', (e) => {
+const openInMMTop = document.getElementById('openInMMTop');
+if (openInMMTop) {
+  openInMMTop.addEventListener('click', (e) => {
     e.preventDefault();
-    if (!isInMetaMask() && isMobile() && !window.ethereum) {
-      openInMetaMaskDeeplink();
-    } else {
-      connectWallet();
-    }
+    ensureInMetaMask();
   });
+}
 
-  const connectBtnSticky = document.getElementById('connectBtnSticky');
-  if (connectBtnSticky) connectBtnSticky.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (!isInMetaMask() && isMobile() && !window.ethereum) {
-      openInMetaMaskDeeplink();
-    } else {
-      connectWallet();
-    }
-  });
+document.getElementById('connectBtn')?.addEventListener('click', connectWallet);
+document.getElementById('connectSticky')?.addEventListener('click', connectWallet);
 
-  const deeplinkA = document.getElementById('deeplink');
-  if (deeplinkA) {
-    deeplinkA.addEventListener('click', (e) => {
-      e.preventDefault();
-      openInMetaMaskDeeplink();
-    });
-  }
+document.getElementById('deeplink')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  ensureInMetaMask();
 });
