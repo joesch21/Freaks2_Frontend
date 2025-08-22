@@ -82,23 +82,52 @@ const showStatus = (lines) => {
 function showLoader(){ el('loader')?.classList?.remove('hidden'); }
 function hideLoader(){ el('loader')?.classList?.add('hidden'); }
 
+async function waitForAllowance(addr) {
+  const end = Date.now() + 20000;
+  while (Date.now() < end) {
+    const a = await gccRead.allowance(addr, FREAKY_CONTRACT);
+    if (a >= entryAmount) return true;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
 /* ---------- Init ---------- */
 function initApp() {
   hideLoader();
-  el('approveBtn').disabled = true;
-  el('joinBtn').disabled = true;
-  el('claimBtn')?.setAttribute('disabled','');
-
-  el('connectBtn').addEventListener('click', connectMetaMask);
-  el('approveBtn').addEventListener('click', handleApprove);
-  el('joinBtn').addEventListener('click', relayJoin);
-  el('claimBtn')?.addEventListener('click', claimRefund);
-
-  // Mobile deep link hint
+  const approveBtn = el('approveBtn');
+  const joinBtn = el('joinBtn');
+  const claimBtn = el('claimBtn');
+  const connectBtn = el('connectBtn');
   const mmLink = el('metamaskLink');
-  if (/Mobi|Android|iPhone/i.test(navigator.userAgent) && mmLink) {
-    mmLink.classList.remove('hidden');
+  const deeplink = el('deeplink');
+
+  if (approveBtn) approveBtn.disabled = true;
+  if (joinBtn) joinBtn.disabled = true;
+  claimBtn?.setAttribute('disabled','');
+
+  const hasProvider = typeof window.ethereum !== 'undefined';
+  const ua = navigator.userAgent;
+  const inApp = /Twitter|FBAN|FBAV|Instagram|Telegram|GoogleWebView/i.test(ua);
+
+  if (hasProvider && connectBtn) {
+    connectBtn.style.display = '';
+    connectBtn.addEventListener('click', connectMetaMask);
+  } else if (connectBtn) {
+    connectBtn.style.display = 'none';
   }
+
+  if ((!hasProvider || inApp) && mmLink) {
+    mmLink.classList.remove('hidden');
+    if (deeplink) {
+      const host = window.location.host;
+      deeplink.href = `https://metamask.app.link/dapp/${host}`;
+    }
+  }
+
+  approveBtn?.addEventListener('click', handleApprove);
+  joinBtn?.addEventListener('click', relayJoin);
+  claimBtn?.addEventListener('click', claimRefund);
 }
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -212,12 +241,17 @@ async function handleApprove() {
       setStatus('🔐 Approving contract...');
       const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
       await tx.wait();
-      setStatus('✅ Approved');
+      setStatus('⏳ Waiting for allowance...');
+      const ok = await waitForAllowance(addr);
+      if (ok) {
+        el('joinBtn').disabled = false;
+        el('approveBtn').disabled = true;
+        setStatus('Approved. You can now Join.');
+      } else {
+        setStatus('⚠️ Approval pending, please try again.');
+      }
     } else {
       setStatus('✅ Already approved');
-    }
-    const newAllowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
-    if (newAllowance >= entryAmount) {
       el('joinBtn').disabled = false;
       el('approveBtn').disabled = true;
     }
@@ -290,6 +324,7 @@ async function updateModeDisplay() {
     modeEl.innerText = m === 0 ? 'Standard Ritual' : m === 1 ? 'Jackpot' : String(m);
   } catch (e) {
     console.warn('Mode load failed', e);
+    setStatus('⚠️ Failed to load mode');
   }
 }
 
@@ -308,12 +343,13 @@ async function updateContractBalances() {
     // Read token balance from the contract via view function instead of reading
     // directly from the token.  This accounts for escrowed/refundable amounts.
     const gccBal = await gameContract.getContractTokenBalance();
-    setTextAny(['gccBalance','poolBalance'], `${ethers.formatUnits(gccBal, 18)} GCC`);
+    setTextAny(['gccBalance'], `${ethers.formatUnits(gccBal, 18)} GCC`);
 
     const bnbBal = await gameContract.checkBNBBalance();
     setTextAny(['bnbBalance'], `${ethers.formatUnits(bnbBal, 18)} BNB`);
   } catch (e) {
     console.warn('Balance load failed', e);
+    setStatus('⚠️ Failed to load balances');
   }
 }
 

@@ -44,21 +44,21 @@
 
     <!-- Right dock controls -->
     <aside class="dock" role="region" aria-label="Join Freaky Friday">
-      <div class="dock-inner">
+      <div class="dock-inner actions">
         <button class="dock-handle" aria-expanded="true" aria-label="Toggle panel">
         <span class="grip">⋮⋮</span>
         <span class="label">Open in MetaMask (mobile)</span>
         <span class="chev">▾</span>
       </button>
         <p id="metamaskLink" class="hidden">
-          <a id="deeplink" class="deeplink">📱 Open in MetaMask (mobile)</a>
+          <a id="deeplink" class="deeplink" href="https://metamask.app.link/dapp/freaks2-frontend.onrender.com">📱 Open in MetaMask (mobile)</a>
         </p>
 
         <button id="connectBtn">🔗 Connect Wallet</button>
         <button id="approveBtn" disabled>✅ Step 1: Approve 50 GCC to Contract</button>
         <button id="joinBtn" disabled>🚀 Step 2: Join the Ritual</button>
 
-        <div id="status" class="status">⏳ Waiting for wallet connection...</div>
+        <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
         <p>Wallet: <span id="walletAddress">—</span></p>
 
         <div>Winner: <span id="lastWinner">—</span></div>
