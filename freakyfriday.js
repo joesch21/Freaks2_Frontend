@@ -11,6 +11,59 @@ import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
 import { connectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
 import { maybeShowTimer } from './frontendtimer.js';
 
+// -----------------------------------------------------------------------------
+// Predicted winner helpers
+//
+// To display the winner of the most recently completed round without server
+// storage, we query the RoundCompleted event logs directly from the chain.
+// This avoids relying on any backend state.  After the user connects, we
+// invoke loadPredictedWinner() to backfill the latest event and attach a
+// listener for real‑time updates.  The UI elements involved are
+// `<p id="winnerContainer">` containing `<span id="predictedWinner">`.  The
+// winner bar at the top is handled separately via attachWinnerListenerLocal().
+
+async function loadPredictedWinner() {
+  try {
+    // Ensure both the provider and gameContract are available (set on connect).
+    if (!provider || !gameContract) return;
+    // Build a filter for the RoundCompleted event (winner, round).
+    const filter = gameContract.filters.RoundCompleted(null, null);
+    const toBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(1, toBlock - 200000);
+    const logs = await gameContract.queryFilter(filter, fromBlock, toBlock);
+    if (logs.length) {
+      const last = logs[logs.length - 1];
+      const winner = last.args?.winner;
+      if (winner) {
+        const cont   = document.getElementById('winnerContainer');
+        const predEl = document.getElementById('predictedWinner');
+        if (cont && predEl) {
+          cont.style.display = '';
+          predEl.innerText = winner;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('loadPredictedWinner failed', e);
+  }
+}
+
+function attachPredictedWinnerListener() {
+  if (!gameContract) return;
+  try {
+    gameContract.on('RoundCompleted', (winner /* address */, round /* BigInt */) => {
+      const cont   = document.getElementById('winnerContainer');
+      const predEl = document.getElementById('predictedWinner');
+      if (cont && predEl) {
+        cont.style.display = '';
+        predEl.innerText = winner;
+      }
+    });
+  } catch (e) {
+    console.warn('Predicted winner listener attach failed', e);
+  }
+}
+
 let entryAmount;
 
 /* ---------- Small DOM helpers ---------- */
@@ -105,6 +158,10 @@ async function connectMetaMask() {
     if (parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase())) {
       setStatus('✅ Already joined this round');
       hide('approveBtn'); hide('joinBtn');
+      // Still attach live winner listeners for UI updates.
+      attachWinnerListenerLocal();
+      attachPredictedWinnerListener();
+      await loadPredictedWinner();
       return;
     }
 
@@ -112,6 +169,9 @@ async function connectMetaMask() {
 
     // Winner banner live + backfill
     attachWinnerListenerLocal();
+    // Predicted winner backfill + live listener
+    attachPredictedWinnerListener();
+    await loadPredictedWinner();
   } catch (err) {
     console.error(err);
     setStatus(`❌ ${err?.message || 'Connect failed'}`);
