@@ -200,20 +200,37 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 
 /* Sticky bottom connect button */
 .connect-sticky {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: calc(100% - 2rem);
-  margin: 0 1rem 1rem;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.15);
-  background: rgba(20,20,22,.9);
+  position: sticky; /* sits just above the bottom safe area */
+  bottom: env(safe-area-inset-bottom, 12px);
+  left: 0; right: 0;
+  margin: 16px auto;
+  display: block;
+  width: min(640px, 92%);
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 18px;
+  background: #0f0f0f;
   color: #fff;
-  font-size: 17px;
-  backdrop-filter: blur(8px);
-  z-index: 1000;
+  border: 1px solid #444;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  z-index: 50;
+}
+.connect-sticky:disabled {
+  opacity: .6;
+}
+
+.mm-hint {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom, 12px) + 68px);
+  width: min(640px, 92%);
+  margin: 0 auto 8px;
+  background: #1d2a22;
+  color: #b6ffd0;
+  border: 1px solid #2b6349;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  z-index: 51;
 }
 
 /* Ensure the main card doesn’t block scroll on Android */
