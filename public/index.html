@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Freaky Friday</title>
+  <style>
+    .toast { padding: 10px 12px; margin-top: 10px; border-radius: 10px; }
+    .toast.info    { background:#eef5ff; }
+    .toast.success { background:#e8f9f1; }
+    .toast.error   { background:#ffecec; }
+    .note { font-size: 0.9em; color: #555; }
+  </style>
+</head>
+<body>
+  <button id="joinBtn">Join with 50 GCC</button>
+  <div class="note">If needed, we'll ask your wallet to approve GCC to the game first.</div>
+  <button id="claimBtn" disabled>Claim Refund</button>
+  <div>Winner: <span id="lastWinner">—</span></div>
+  <div>Prize: <span id="prize">—</span></div>
+  <div>Refund each: <span id="refund">—</span></div>
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
+  <script type="module">
+    import { unifiedJoin } from '../src/unified-join.js';
+    import gameAbi from '../src/abi/freakyFridayGameAbi.js';
+    import { FREAKY_CONTRACT } from '../src/frontendinfo.js';
+    const { ethers } = window;
+
+    document.getElementById('joinBtn').onclick = unifiedJoin;
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const game = new ethers.Contract(FREAKY_CONTRACT, gameAbi, provider);
+    game.on('RoundCompleted', (winner, round, prizePaid, refundPerPlayerFinal) => {
+      document.getElementById('lastWinner').textContent = winner;
+      document.getElementById('prize').textContent  = `${ethers.formatUnits(prizePaid, 18)} GCC`;
+      document.getElementById('refund').textContent = `${ethers.formatUnits(refundPerPlayerFinal, 18)} GCC per player`;
+      window.currentClosedRound = Number(round);
+      document.getElementById('claimBtn')?.removeAttribute('disabled');
+    });
+
+    document.getElementById('claimBtn').onclick = async () => {
+      const signer = await provider.getSigner();
+      const gameW  = game.connect(signer);
+      const round = window.currentClosedRound;
+      if (!round && round !== 0) return;
+      const tx = await gameW.claimRefund(round);
+      const r  = await tx.wait();
+      const link = `https://bscscan.com/tx/${r?.hash || tx.hash}`;
+      document.getElementById('status').innerHTML =
+        `<div class="toast success">Refund claimed. <a href="${link}" target="_blank">View tx</a></div>`;
+    };
+  </script>
+</body>
+</html>
