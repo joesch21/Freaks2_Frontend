@@ -21,6 +21,10 @@
   <!-- Spinner (optional, your existing JS toggles .hidden) -->
   <div id="loader" class="hidden"><div class="spinner"></div></div>
 
+  <div class="mobile-open-bar">
+    <button id="openInMMTop" class="deeplink-btn">Open in MetaMask (mobile)</button>
+  </div>
+
   <main class="stage">
     <!-- Big scary poster -->
     <figure class="poster" aria-hidden="true">
@@ -110,12 +114,6 @@
 
     <!-- optional: small invisible debug slot for contract/relayer -->
     <pre id="debug" style="display:none"></pre>
-    <section class="connect-bottom">
-      <button id="connectBtnBottom" class="secondary">🔗 Connect Wallet</button>
-      <a id="deeplinkBottom" class="deeplink hidden" href="#" rel="noopener">
-        📱 Open in MetaMask (mobile)
-      </a>
-    </section>
 
     <footer class="footer">
       <p class="footer-note flicker">Built by the Condor Crew. Powered by GCC. Fueled by ritual.</p>
@@ -137,11 +135,9 @@
   <!-- Dim overlay -->
   <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
 
-  <!-- Sticky Connect bar: always visible on mobile -->
-  <div id="stickyConnect" class="sticky-connect hidden" role="region" aria-label="Wallet actions">
-    <button id="stickyConnectBtn" class="btn primary">🔗 Connect Wallet</button>
-    <a id="mmDeepLink" class="deeplink hidden" href="#" rel="noopener">Open in MetaMask</a>
-  </div>
+  <button id="connectBtnSticky" class="connect-sticky" aria-label="Connect Wallet (sticky)">
+    🔗 Connect Wallet
+  </button>
 
   <!-- Ethers + your app -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
@@ -171,55 +167,6 @@
       }
     } catch {}
   })();
-  </script>
-
-  <script type="module">
-    // ---- Minimal sticky connect wiring (frontend-only) ----
-    const FRONTEND_HOST = window.location.host; // works on Render
-    const METAMASK_DAPP = `https://metamask.app.link/dapp/${FRONTEND_HOST}/`;
-
-    const stickyBar = document.getElementById('stickyConnect');
-    const stickyBtn = document.getElementById('stickyConnectBtn');
-    const mmLink   = document.getElementById('mmDeepLink');
-
-    const hasEthereum = () => typeof window.ethereum !== 'undefined';
-    const isAndroid   = () => /Android/i.test(navigator.userAgent);
-    const isInApp     = () => /(FBAN|FBAV|Instagram|Line|Twitter|OkHttp|Telegram)/i.test(navigator.userAgent||'');
-
-    function showSticky() { stickyBar?.classList.remove('hidden'); }
-    function hideSticky() { stickyBar?.classList.add('hidden'); }
-    function showDeepLink() { mmLink?.classList.remove('hidden'); }
-    function hideDeepLink() { mmLink?.classList.add('hidden'); }
-
-    // Expose a tiny helper so existing connect logic can hide the bar once connected
-    window.__ffux = { hideSticky };
-
-    // Decide what to show
-    (function mountStickyBar(){
-      if (!stickyBar) return;
-      const needDeeplink = isAndroid() && (!hasEthereum() || isInApp());
-      if (needDeeplink) {
-        mmLink.href = METAMASK_DAPP;
-        showDeepLink();
-        showSticky();
-      } else {
-        hideDeepLink();
-        showSticky();
-      }
-    })();
-
-    // Default connect handler (uses injected provider). If you already have a
-    // connect function elsewhere, you can call it here instead.
-    stickyBtn?.addEventListener('click', async () => {
-      try {
-        if (!hasEthereum()) return; // deeplink button covers this case
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        // let the rest of the app continue (your existing init logic)
-        window.__ffux?.hideSticky();
-      } catch (e) {
-        console.warn('Connect cancelled/failed', e);
-      }
-    });
   </script>
 
   <!-- Heat‑warp SVG filter (hidden) -->
@@ -390,8 +337,5 @@
 
 })();
 </script>
-
-<script type="module" src="./wallet-wiring.js"></script>
-
 </body>
 </html>
