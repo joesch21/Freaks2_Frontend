@@ -110,9 +110,12 @@
 
     <!-- optional: small invisible debug slot for contract/relayer -->
     <pre id="debug" style="display:none"></pre>
-
-   
-
+    <section class="connect-bottom">
+      <button id="connectBtnBottom" class="secondary">🔗 Connect Wallet</button>
+      <a id="deeplinkBottom" class="deeplink hidden" href="#" rel="noopener">
+        📱 Open in MetaMask (mobile)
+      </a>
+    </section>
 
     <footer class="footer">
       <p class="footer-note flicker">Built by the Condor Crew. Powered by GCC. Fueled by ritual.</p>
@@ -387,6 +390,8 @@
 
 })();
 </script>
+
+<script type="module" src="./wallet-wiring.js"></script>
 
 </body>
 </html>

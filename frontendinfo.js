@@ -3,7 +3,7 @@
 // This module defines constants for the Freaks2 front‑end.  Update these
 // values to point at your deployed contract, the GCC token and your
 // backend API.  These values are consumed by the core application code.
-
+//
 // Address of the deployed FreakyFridayAuto contract (Freaks2).  Replace
 // this placeholder with your actual contract address after deployment.
 export const FREAKY_CONTRACT = '0x2a37F0325bcA2B71cF7f2189796Fb9BC1dEBc9C9';
