@@ -346,3 +346,15 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-badge{font-size:.72rem;background:#20324a;color:#9cc6ff;border:1px solid #2a3e5e;border-radius:999px;padding:.1rem .45rem}
 .ff-copy{background:#1e2430;border:1px solid #2c3546;color:#b7c1d8;border-radius:10px;padding:.25rem .5rem}
 .ff-copy:hover{background:#263146}
+
+/* Player count & link */
+.ff-stats{display:flex;gap:10px;align-items:center;margin:.5rem 0 0}
+.ff-pill{background:#1a2130;color:#cfe0ff;border:1px solid #233047;border-radius:999px;padding:.2rem .6rem;font-weight:600}
+.ff-link{background:transparent;border:0;color:#79a8ff;text-decoration:underline}
+
+/* Timer & progress bar */
+.ff-timer{margin:.6rem 0 0}
+.ff-timer-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem}
+.ff-progress{height:8px;background:#1b2332;border-radius:999px;overflow:hidden;border:1px solid #243149}
+#ff-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#1f8bff,#6dd5fa)}
+.ff-join-disabled{opacity:.6;pointer-events:none}

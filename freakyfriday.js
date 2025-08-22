@@ -9,7 +9,6 @@
 
 import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
 import { connectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
-import { maybeShowTimer } from './frontendtimer.js';
 
 // -----------------------------------------------------------------------------
 // Predicted winner helpers
@@ -161,8 +160,11 @@ async function connectMetaMask() {
 
     // Already joined?
     const parts = await gameContract.getParticipants();
-    if (parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase())) {
-      setStatus('<span class="ff-joined-badge">✅ Already joined this round</span>');
+    const joinedBadge = document.getElementById('ff-joined-badge');
+    const already = parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase());
+    if (joinedBadge) joinedBadge.style.display = already ? 'inline-flex' : 'none';
+    if (already) {
+      setStatus('');
       hide('approveBtn'); hide('joinBtn');
       // Still attach live winner listeners for UI updates.
       attachWinnerListenerLocal();
@@ -257,7 +259,6 @@ async function refreshAll() {
   await Promise.all([
     showParticipants(),
     updateContractBalances(),
-    maybeShowTimer(gameContract),
     updateModeDisplay(),
     showLastWinner()
   ]);
@@ -265,7 +266,6 @@ async function refreshAll() {
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
-    maybeShowTimer(gameContract),
     showParticipants(),
     updateModeDisplay(),
     showLastWinner()
