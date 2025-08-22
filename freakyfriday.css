@@ -198,6 +198,44 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .dock-inner { padding: 14px 16px; height: 100%; overflow: auto; }
 .deeplink { color: #00ff88; font-weight: 700; }
 
+/* Sticky bottom connect button */
+.connect-sticky {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: calc(100% - 2rem);
+  margin: 0 1rem 1rem;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(20,20,22,.9);
+  color: #fff;
+  font-size: 17px;
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+}
+
+/* Ensure the main card doesn’t block scroll on Android */
+.container {
+  overflow-x: hidden;
+}
+
+/* Top deeplink button styling */
+.mobile-open-bar {
+  display: flex;
+  justify-content: center;
+  margin: .5rem 0 1rem;
+}
+.deeplink-btn {
+  background: #0d7a5b;
+  color: #e7fff6;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
 /* Participants bottom rail */
 .participants {
   position: fixed;
@@ -397,43 +435,3 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 #ff-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#1f8bff,#6dd5fa)}
 .ff-join-disabled{opacity:.6;pointer-events:none}
 
-/* --- Sticky connect bar --- */
-.sticky-connect {
-  position: sticky;
-  bottom: 0;
-  inset-inline: 0;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 16px;
-  background: rgba(10,10,10,.9);
-  backdrop-filter: blur(4px);
-  z-index: 10000;
-  border-top: 1px solid rgba(255,255,255,.12);
-}
-.sticky-connect.hidden { display: none; }
-.sticky-connect .btn.primary {
-  font-size: 16px;
-  padding: 12px 18px;
-}
-.sticky-connect .deeplink {
-  font-size: 14px;
-  text-decoration: underline;
-  opacity: .9;
-}
-
-/* Slightly tighter spacing on very small screens so CTAs stay in view */
-@media (max-height: 640px) {
-  .hero, .intro, .actions { margin-block-end: 8px; }
-}
-
-.connect-bottom {
-  margin: 18px 0 24px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.deeplink.hidden { display: none; }
