@@ -218,21 +218,30 @@ async function relayJoin() {
     setStatus('🚀 Joining ritual...');
     const signer = await provider.getSigner();
     const addr = await signer.getAddress();
-    // Call our backend relayer to register the user.  The backend will call
-    // relayedEnter(user) using its own signer.
-    const res = await fetch(`${BACKEND_URL}/relay-entry`, {
+    // Call backend join endpoint which returns both enter and refund tx hashes
+    const resp = await fetch(`${BACKEND_URL}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user: addr })
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setStatus(`✅ Joined! tx: ${data.txHash || 'pending'}`);
-      await refreshAll();
-    } else {
-      setStatus(`❌ Join failed: ${data.detail || data.error || res.statusText}`);
+    const json = await resp.json();
+    if (!json?.success) {
+      throw new Error(json?.error || 'Join failed');
     }
+
+    const { enterTxHash, refundTxHash } = json;
+    const enterLink  = `https://bscscan.com/tx/${enterTxHash}`;
+    const refundLink = refundTxHash ? `https://bscscan.com/tx/${refundTxHash}` : null;
+
+    const msg = [
+      `Refund sent: <b>50 GCC (gross)</b>.`,
+      `Because GCC has a transfer fee, you’ll receive <b>~49 GCC</b>. That’s expected.`,
+      `<a href="${enterLink}" target="_blank" rel="noopener">View Join Tx</a>`,
+      refundLink ? `<a href="${refundLink}" target="_blank" rel="noopener">View Refund Tx</a>` : `Refund tx pending…`
+    ].join('<br/>');
+
+    document.getElementById('status').innerHTML = msg;
+    await refreshAll();
   } catch (e) {
     console.error(e);
     setStatus(`❌ ${e?.message || 'Join failed'}`);
