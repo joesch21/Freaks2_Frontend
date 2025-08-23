@@ -23,4 +23,7 @@ export const FREAKY_RELAYER = '0xd5422b7493e65c5b5cbfd70028df2D2ED8A39CDE';
 // your deployed backend service (for local testing, use http://localhost:3000).
 export const BACKEND_URL = 'https://freak2backend.onrender.com';
 
+// Constant for zero address checks
+export const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
 // No helper functions are defined here.  See freakyfriday.js for UI update logic.
