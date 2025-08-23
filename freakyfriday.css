@@ -540,3 +540,50 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .rules__footer{ padding: .75rem 1rem; border-top: 1px solid rgba(255,255,255,.08); }
 .rules__link{ color:#71e0a9; text-decoration: underline; }
 #rulesClose{ background:transparent; color:#fff; border:none; font-size:1.2rem; }
+
+/* Admin toggle switch */
+.mode-toolbar {
+  display:flex; align-items:center; gap:.75rem; margin:.5rem 0;
+}
+.mode-badge {
+  display:inline-block; padding:.25rem .5rem; border-radius:6px;
+  background:#222; color:#fff; font-weight:600; font-size:.9rem;
+}
+.admin-toggle.hidden { display:none; }
+
+.switch { position:relative; display:inline-block; width:52px; height:28px; }
+.switch input { opacity:0; width:0; height:0; }
+.slider {
+  position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+  background:#bbb; transition:.2s; border-radius:28px;
+}
+.slider:before {
+  position:absolute; content:""; height:22px; width:22px; left:3px; bottom:3px;
+  background:white; transition:.2s; border-radius:50%;
+}
+input:checked + .slider { background:#7b00ff; }
+input:checked + .slider:before { transform:translateX(24px); }
+
+/* Freaky site-wide theme toggled on <body class="freaky"> */
+body.freaky {
+  --brand-bg: #0a0014;
+  --brand-accent: #7b00ff;
+  --brand-accent-2: #e4007c;
+  background: radial-gradient(1200px 800px at 50% -20%, #1c0038, #0a0014 60%);
+  color: #f5f0ff;
+}
+body.freaky .mode-badge { background: linear-gradient(90deg, #7b00ff, #e4007c); }
+body.freaky .button, body.freaky button {
+  border-color:#7b00ff; color:#fff; background:#1c0038;
+}
+body.freaky a { color:#e6b3ff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  body.freaky {
+    animation: subtlePulse 8s ease-in-out infinite;
+  }
+  @keyframes subtlePulse {
+    0%,100% { filter:saturate(1); }
+    50%     { filter:saturate(1.15); }
+  }
+}

@@ -7,7 +7,7 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
+import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER, REQUIRED_CHAIN_ID } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
@@ -128,17 +128,83 @@ const showStatus = (lines) => {
   if (s) s.innerHTML = Array.isArray(lines) ? lines.join('<br/>') : lines;
 };
 
-/* ---------- Mode badge + Last round ---------- */
-async function refreshModeBadge() {
+/* ---------- Mode + Last round ---------- */
+async function isAdminOrRelayer(game, addr) {
+  if (!addr) return false;
   try {
-    const src = gameContract || gameRead;
-    if (!src?.getRoundMode) return;
-    const m = Number(await src.getRoundMode());
-    const badge = document.getElementById('modeBadge');
-    if (badge) badge.textContent = m === 1 ? '💀 JACKPOT' : '🔮 STANDARD';
+    const admin = await game.admin();
+    if (admin && admin.toLowerCase() === addr.toLowerCase()) return true;
+  } catch {}
+  try {
+    if (typeof FREAKY_RELAYER !== 'undefined' &&
+        FREAKY_RELAYER.toLowerCase() === addr.toLowerCase()) return true;
+  } catch {}
+  return false;
+}
+
+function applyThemeForMode(modeNum) {
+  const body = document.body;
+  const badge = document.getElementById('modeBadge');
+  const switchEl = document.getElementById('freakySwitch');
+  const label = document.getElementById('freakySwitchLabel');
+  const modeText = document.getElementById('modeDisplay');
+
+  const isJackpot = Number(modeNum) === 1;
+  if (badge) badge.textContent = isJackpot ? '💀 JACKPOT' : '🔮 STANDARD';
+  body.classList.toggle('freaky', isJackpot);
+  if (switchEl) switchEl.checked = isJackpot;
+  if (label) label.textContent = isJackpot ? 'Jackpot' : 'Standard';
+  if (modeText) modeText.textContent = isJackpot ? 'Jackpot' : 'Standard Ritual';
+}
+
+async function refreshModeUI(game, userAddr) {
+  try {
+    if (typeof game?.getRoundMode === 'function') {
+      const modeNum = await game.getRoundMode();
+      applyThemeForMode(modeNum);
+    }
+
+    const adminToggle = document.getElementById('adminModeToggle');
+    if (adminToggle) {
+      const canAdmin = await isAdminOrRelayer(game, userAddr);
+      adminToggle.classList.toggle('hidden', !canAdmin);
+    }
   } catch (e) {
-    console.warn('refreshModeBadge failed', e);
+    console.error('refreshModeUI error', e);
   }
+}
+
+async function ensureChain(provider) {
+  const net = await provider.getNetwork();
+  if (Number(net.chainId) !== REQUIRED_CHAIN_ID) {
+    alert('Please switch to BSC mainnet to change mode.');
+    throw new Error('Wrong chain');
+  }
+}
+
+function wireAdminSwitch(game, signer) {
+  const input = document.getElementById('freakySwitch');
+  if (!input) return;
+  input.addEventListener('change', async (e) => {
+    try {
+      const isJackpot = e.target.checked;
+      const modeVal = isJackpot ? 1 : 0;
+      const addr = await signer.getAddress();
+      if (!(await isAdminOrRelayer(game, addr))) {
+        e.target.checked = !isJackpot;
+        return alert('Only admin/relayer can change mode.');
+      }
+      await ensureChain(provider);
+      const tx = await game.setRoundMode(modeVal);
+      await tx.wait();
+      const newMode = await game.getRoundMode();
+      applyThemeForMode(newMode);
+    } catch (err) {
+      console.error(err);
+      e.target.checked = !e.target.checked;
+      alert('Failed to change mode. See console.');
+    }
+  });
 }
 
 async function getLastResolvedRound(g) {
@@ -290,9 +356,24 @@ export async function connectWallet() {
 
     await mountLastWinner(provider);
 
-    await refreshModeBadge();
+    await refreshModeUI(gameContract, userAddress);
+    wireAdminSwitch(gameContract, signer);
     await refreshLastRound();
-    window.addEventListener('focus', () => { refreshModeBadge(); refreshLastRound(); });
+    window.addEventListener('focus', async () => {
+      const a = (await signer.getAddress?.().catch(() => null)) || null;
+      refreshModeUI(gameContract, a);
+      refreshLastRound();
+    });
+    if (window.ethereum) {
+      window.ethereum.on?.('accountsChanged', async (accs) => {
+        const a = accs?.[0] || null;
+        await refreshModeUI(gameContract, a);
+      });
+      window.ethereum.on?.('chainChanged', async () => {
+        const a = (await signer.getAddress?.().catch(() => null)) || null;
+        await refreshModeUI(gameContract, a);
+      });
+    }
 
     // Entry amount (fallback to 50 GCC if view not present)
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
@@ -420,34 +501,16 @@ async function relayJoin() {
 async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
-    updateModeDisplay(),
-    refreshModeBadge(),
+    refreshModeUI(gameContract || gameRead, connectedAddr),
     refreshLastRound()
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
-    updateModeDisplay(),
-    refreshModeBadge(),
+    refreshModeUI(gameContract || gameRead, connectedAddr),
     refreshLastRound()
   ]);
-}
-
-/* ---------- Mode display ---------- */
-async function updateModeDisplay() {
-  try {
-    const src = gameContract || gameRead;
-    // Prefer getRoundMode() if available; fallback to public roundMode() variable
-    const mode = src.getRoundMode ? await src.getRoundMode() : await src.roundMode();
-    const modeEl = document.getElementById('modeDisplay');
-    if (!modeEl) return;
-    const m = Number(mode);
-    modeEl.innerText = m === 0 ? 'Standard Ritual' : m === 1 ? 'Jackpot' : String(m);
-  } catch (e) {
-    console.warn('Mode load failed', e);
-    setStatus('⚠️ Failed to load mode');
-  }
 }
 
 // helper
@@ -518,7 +581,11 @@ function attachWinnerListenerLocal() {
 function attachRoundCompletedListener() {
   if (!gameContract) return;
 
-  const update = () => { refreshModeBadge(); refreshLastRound(); };
+  const update = async () => {
+    const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
+    refreshModeUI(gameContract, a);
+    refreshLastRound();
+  };
 
   try {
     gameContract.on('RoundCompleted', update);
@@ -531,7 +598,8 @@ function attachRoundCompletedListener() {
       const filter = gameContract.filters.RoundCompleted();
       const events = await gameContract.queryFilter(filter, -5000);
       if (events.length) {
-        await refreshModeBadge();
+        const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
+        await refreshModeUI(gameContract, a);
         await refreshLastRound();
       }
     } catch (e) {
