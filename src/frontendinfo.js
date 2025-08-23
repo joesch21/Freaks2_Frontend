@@ -6,7 +6,7 @@
 
 // Address of the deployed FreakyFridayAuto contract (Freaks2).  Replace
 // this placeholder with your actual contract address after deployment.
-export const FREAKY_CONTRACT = '0x2608f724dec63dEa893BC5380FF0e77E5C446480';
+export const FREAKY_CONTRACT = '0x2a37F0325bcA2B71cF7f2189796Fb9BC1dEBc9C9';
 
 // Address of the GCC token contract on Binance Smart Chain.  Replace this
 // placeholder with the official GCC token address on mainnet.
