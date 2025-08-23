@@ -18,6 +18,9 @@ export const GCC_TOKEN = '0x092aC429b9c3450c9909433eB0662c3b7c13cF9A';
 // transparency or auditing purposes.
 export const FREAKY_RELAYER = '0xd5422b7493e65c5b5cbfd70028df2D2ED8A39CDE';
 
+// optional: exported chain id guard
+export const REQUIRED_CHAIN_ID = 56; // BSC mainnet
+
 // Base URL of the backend API.  The frontend will call relative paths on
 // this host (e.g. `${BACKEND_URL}/relay-entry`).  Update this to match
 // your deployed backend service (for local testing, use http://localhost:3000).
