@@ -143,6 +143,49 @@
     🔗 Connect Wallet
   </button>
 
+  <!-- Rules Tab Trigger -->
+  <button id="rulesTab" aria-controls="rulesDrawer" aria-expanded="false">Rules</button>
+
+  <!-- Backdrop -->
+  <div id="rulesBackdrop" hidden></div>
+
+  <!-- Slide-in Drawer -->
+  <aside id="rulesDrawer" aria-hidden="true" role="dialog" aria-labelledby="rulesTitle">
+    <header class="rules__header">
+      <h2 id="rulesTitle">How Freaky Friday works</h2>
+      <button id="rulesClose" aria-label="Close">✕</button>
+    </header>
+    <div class="rules__body">
+      <h3>1. Modes</h3>
+      <ul>
+        <li>Standard Ritual: Each entry is 50 GCC. At round close the winner receives 1 GCC × number of players. Every participant (including the winner) can claim a 49 GCC refund.</li>
+        <li>Jackpot Ritual: Each entry is 50 GCC. At round close the winner receives all entries (no refunds).</li>
+      </ul>
+      <h3>2. Rounds</h3>
+      <ul>
+        <li>A round starts when the first player joins and runs for the configured duration shown by the timer.</li>
+        <li>Anyone can call Close Round (our backend cron usually does it). A small tip may be paid to the closer from surplus funds.</li>
+      </ul>
+      <h3>3. Refunds (Standard mode)</h3>
+      <ul>
+        <li>Your refund is available after the round is closed. Use Claim Refund on the page.</li>
+        <li>Refunds do not expire but you must claim per round.</li>
+      </ul>
+      <h3>4. Transparency</h3>
+      <ul>
+        <li>Winner is selected with on‑chain pseudo‑randomness based on block data.</li>
+        <li>Contract: 0x2a37F0325bcA2B71cF7f2189796Fb9BC1dEBc9C9</li>
+      </ul>
+      <h3>5. Fees & Tokens</h3>
+      <ul>
+        <li>Token: GCC (18 decimals). Network: BNB Smart Chain.</li>
+      </ul>
+    </div>
+    <footer class="rules__footer">
+      <a class="rules__link" href="https://bscscan.com/address/0x2a37F0325bcA2B71cF7f2189796Fb9BC1dEBc9C9" target="_blank" rel="noopener">View contract on BscScan</a>
+    </footer>
+  </aside>
+
   <!-- Ethers + your app -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.7.0/dist/ethers.umd.min.js"></script>
   <script type="importmap">
@@ -339,6 +382,44 @@
     lastY = y;
   }, { passive: true });
 
+})();
+</script>
+
+<script>
+(() => {
+  const tab = document.getElementById('rulesTab');
+  const drawer = document.getElementById('rulesDrawer');
+  const closeBtn = document.getElementById('rulesClose');
+  const backdrop = document.getElementById('rulesBackdrop');
+
+  function openDrawer(){
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    tab.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+    // avoid covering CTAs — scroll into view if overlap
+    document.querySelector('#app')?.scrollIntoView({block:'start', behavior:'smooth'});
+  }
+  function closeDrawer(){
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    tab.setAttribute('aria-expanded', 'false');
+    backdrop.hidden = true;
+  }
+
+  tab.addEventListener('click', openDrawer);
+  closeBtn.addEventListener('click', closeDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+  // optional: swipe-to-close on mobile
+  let startY=null;
+  drawer.addEventListener('touchstart', e => startY = e.touches[0].clientY, {passive:true});
+  drawer.addEventListener('touchmove', e => {
+    if(startY===null) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 60) closeDrawer();
+  }, {passive:true});
 })();
 </script>
 </body>
