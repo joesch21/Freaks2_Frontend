@@ -1,3 +1,4 @@
+// ABI for FreakyFridayGame including refund/mode helpers
 export default [
 	{
 		"inputs": [

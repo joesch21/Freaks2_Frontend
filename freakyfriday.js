@@ -10,7 +10,6 @@
 import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
-import { refreshModeAndLastRound, wireClaim } from './lastRound.js';
 
 // --- Environment detection ---
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -129,6 +128,89 @@ const showStatus = (lines) => {
   if (s) s.innerHTML = Array.isArray(lines) ? lines.join('<br/>') : lines;
 };
 
+/* ---------- Mode badge + Last round ---------- */
+async function refreshModeBadge() {
+  try {
+    const src = gameContract || gameRead;
+    if (!src?.getRoundMode) return;
+    const m = Number(await src.getRoundMode());
+    const badge = document.getElementById('modeBadge');
+    if (badge) badge.textContent = m === 1 ? '💀 JACKPOT' : '🔮 STANDARD';
+  } catch (e) {
+    console.warn('refreshModeBadge failed', e);
+  }
+}
+
+async function getLastResolvedRound(g) {
+  const cr = Number(await g.currentRound().catch(() => 0));
+  for (let r = cr; r >= 1 && r >= cr - 3; r--) {
+    const resolved = await g.roundResolved(r).catch(() => false);
+    if (resolved) {
+      const mode = Number(await g.roundModeAtClose(r).catch(() => 0));
+      const winner = await g.winnerOfRound(r).catch(() => ethers.ZeroAddress);
+      const refund = await g.refundPerPlayer(r).catch(() => 0n);
+      const players = Number(await g.playersInRound(r).catch(() => 0));
+      const entry = await g.entryAmount().catch(() => 50n * 10n**18n);
+      const prize = (mode === 1) ? BigInt(players) * entry : BigInt(players) * (10n**18n);
+      return { r, mode, winner, refund, prize };
+    }
+  }
+  return null;
+}
+
+async function refreshLastRound() {
+  try {
+    const g = gameContract || gameRead;
+    if (!g) return;
+    const panel = document.getElementById('lastRoundPanel');
+    const claimBtn = document.getElementById('lr_claim');
+    const hint = document.getElementById('lr_hint');
+
+    const last = await getLastResolvedRound(g);
+    if (!last) {
+      if (panel) panel.style.display = 'none';
+      return;
+    }
+    if (panel) panel.style.display = 'block';
+
+    document.getElementById('lr_round').textContent = String(last.r);
+    document.getElementById('lr_mode').textContent = last.mode === 1 ? 'Jackpot' : 'Standard';
+    document.getElementById('lr_winner').textContent = last.winner;
+    document.getElementById('lr_prize').textContent = `${ethers.formatUnits(last.prize,18)} GCC`;
+    document.getElementById('lr_refund').textContent = `${ethers.formatUnits(last.refund,18)} GCC`;
+
+    let canClaim = false;
+    const user = connectedAddr?.toLowerCase();
+    if (user && last.mode === 0 && last.refund > 0n) {
+      const joined = await g.hasJoinedThisRound(last.r, user).catch(()=>false);
+      const claimed = await g.refundClaimed(last.r, user).catch(()=>true);
+      canClaim = joined && !claimed;
+    }
+    if (claimBtn) {
+      claimBtn.style.display = canClaim ? 'inline-block' : 'none';
+      claimBtn.disabled = false;
+      claimBtn.textContent = '💸 Claim refund';
+      claimBtn.onclick = async () => {
+        try {
+          const tx = await g.claimRefund(last.r);
+          claimBtn.disabled = true;
+          claimBtn.textContent = 'Claiming...';
+          await tx.wait();
+          claimBtn.textContent = '✅ Claimed';
+          await refreshLastRound();
+        } catch (e) {
+          console.error(e);
+          claimBtn.disabled = false;
+          claimBtn.textContent = '💸 Claim refund';
+        }
+      };
+    }
+    if (hint) hint.style.display = canClaim ? 'block' : 'none';
+  } catch (e) {
+    console.error('refreshLastRound error', e);
+  }
+}
+
 /* ---------- Loader ---------- */
 function showLoader(){ el('loader')?.classList?.remove('hidden'); }
 function hideLoader(){ el('loader')?.classList?.add('hidden'); }
@@ -208,11 +290,9 @@ export async function connectWallet() {
 
     await mountLastWinner(provider);
 
-    const getUserAddress = async () => (await signer.getAddress());
-    const user = await getUserAddress();
-    await refreshModeAndLastRound(gameContract, user);
-    wireClaim(gameContract, getUserAddress, (s) => setStatus?.(s));
-    window.addEventListener('focus', () => refreshModeAndLastRound(gameContract, user));
+    await refreshModeBadge();
+    await refreshLastRound();
+    window.addEventListener('focus', () => { refreshModeBadge(); refreshLastRound(); });
 
     // Entry amount (fallback to 50 GCC if view not present)
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
@@ -341,14 +421,16 @@ async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
     updateModeDisplay(),
-    refreshModeAndLastRound(gameContract || gameRead, connectedAddr)
+    refreshModeBadge(),
+    refreshLastRound()
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
     updateModeDisplay(),
-    refreshModeAndLastRound(gameRead, connectedAddr)
+    refreshModeBadge(),
+    refreshLastRound()
   ]);
 }
 
@@ -436,7 +518,7 @@ function attachWinnerListenerLocal() {
 function attachRoundCompletedListener() {
   if (!gameContract) return;
 
-  const update = () => { refreshModeAndLastRound(gameContract, connectedAddr); };
+  const update = () => { refreshModeBadge(); refreshLastRound(); };
 
   try {
     gameContract.on('RoundCompleted', update);
@@ -449,7 +531,8 @@ function attachRoundCompletedListener() {
       const filter = gameContract.filters.RoundCompleted();
       const events = await gameContract.queryFilter(filter, -5000);
       if (events.length) {
-        await refreshModeAndLastRound(gameContract, connectedAddr);
+        await refreshModeBadge();
+        await refreshLastRound();
       }
     } catch (e) {
       // silent
