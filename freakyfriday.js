@@ -7,8 +7,8 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
-import { connectWallet as coreConnectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr } from './frontendcore.js';
+import { FREAKY_CONTRACT, BACKEND_URL, ZERO_ADDR } from './frontendinfo.js';
+import { connectWallet as coreConnectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
 // --- Environment detection ---
@@ -133,7 +133,7 @@ async function waitForAllowance(addr) {
 }
 
 /* ---------- Init ---------- */
-function initApp() {
+async function initApp() {
   hideLoader();
   const approveBtn = el('approveBtn');
   const joinBtn = el('joinBtn');
@@ -159,6 +159,8 @@ function initApp() {
   approveBtn?.addEventListener('click', handleApprove);
   joinBtn?.addEventListener('click', relayJoin);
   claimBtn?.addEventListener('click', claimRefund);
+
+  await refreshReadOnly();
 }
 document.addEventListener('DOMContentLoaded', initApp);
 
@@ -335,22 +337,24 @@ async function relayJoin() {
 async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
-    updateModeDisplay()
+    updateModeDisplay(),
+    refreshLastRoundUI()
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
-    updateModeDisplay()
+    updateModeDisplay(),
+    refreshLastRoundUI()
   ]);
 }
 
 /* ---------- Mode display ---------- */
 async function updateModeDisplay() {
   try {
-    if (!gameContract) return;
+    const src = gameContract || gameRead;
     // Prefer getRoundMode() if available; fallback to public roundMode() variable
-    const mode = gameContract.getRoundMode ? await gameContract.getRoundMode() : await gameContract.roundMode();
+    const mode = src.getRoundMode ? await src.getRoundMode() : await src.roundMode();
     const modeEl = document.getElementById('modeDisplay');
     if (!modeEl) return;
     const m = Number(mode);
@@ -373,16 +377,78 @@ function setTextAny(ids, value){
 
 async function updateContractBalances() {
   try {
+    const src = gameContract || gameRead;
     // Read token balance from the contract via view function instead of reading
     // directly from the token.  This accounts for escrowed/refundable amounts.
-    const gccBal = await gameContract.getContractTokenBalance();
+    const gccBal = await src.getContractTokenBalance();
     setTextAny(['gccBalance'], `${ethers.formatUnits(gccBal, 18)} GCC`);
 
-    const bnbBal = await gameContract.checkBNBBalance();
+    const bnbBal = await src.checkBNBBalance();
     setTextAny(['bnbBalance'], `${ethers.formatUnits(bnbBal, 18)} BNB`);
   } catch (e) {
     console.warn('Balance load failed', e);
     setStatus('⚠️ Failed to load balances');
+  }
+}
+
+/* ---------- Last round info + refund eligibility ---------- */
+async function refreshLastRoundUI() {
+  const winnerEl = el('lastWinner');
+  const prizeEl = el('prize');
+  const refundEl = el('refund');
+  const claimBtn = el('claimBtn');
+  const hintEl = el('claimHint');
+
+  if (claimBtn) claimBtn.setAttribute('disabled', '');
+  if (hintEl) hintEl.style.display = 'none';
+  if (winnerEl) winnerEl.innerText = '—';
+  if (prizeEl) prizeEl.innerText = '—';
+  if (refundEl) refundEl.innerText = '—';
+
+  try {
+    const active = await gameRead.isRoundActive();
+    const cur = Number(await gameRead.currentRound());
+    if (cur === 0) return;
+    const lastRound = active ? cur - 1 : cur;
+    if (lastRound <= 0) return;
+
+    const resolved = await gameRead.roundResolved(lastRound);
+    if (!resolved) return;
+
+    const modeAtClose = Number(await gameRead.roundModeAtClose(lastRound));
+    const winner = await gameRead.winnerOfRound(lastRound);
+    const refundPerPlayer = await gameRead.refundPerPlayer(lastRound);
+
+    if (winnerEl) winnerEl.innerText = winner && winner !== ZERO_ADDR ? winner : '—';
+
+    if (modeAtClose === 0) {
+      const n = Number(await gameRead.playersInRound(lastRound));
+      const prizeWei = ethers.parseUnits(n.toString(), 18);
+      if (prizeEl) prizeEl.innerText = `${ethers.formatUnits(prizeWei, 18)} GCC`;
+      const rpp = BigInt(refundPerPlayer);
+      if (refundEl) refundEl.innerText = rpp > 0n ? `${ethers.formatUnits(rpp, 18)} GCC` : '—';
+    } else {
+      const n = Number(await gameRead.playersInRound(lastRound));
+      const entry = await gameRead.entryAmount();
+      const prizeWei = entry * BigInt(n);
+      if (prizeEl) prizeEl.innerText = `${ethers.formatUnits(prizeWei, 18)} GCC`;
+      if (refundEl) refundEl.innerText = '—';
+    }
+
+    if (connectedAddr && modeAtClose === 0) {
+      const rpp = BigInt(refundPerPlayer);
+      if (rpp > 0n) {
+        const participated = await gameRead.hasJoinedThisRound(lastRound, connectedAddr);
+        const already = await gameRead.refundClaimed(lastRound, connectedAddr);
+        if (participated && !already) {
+          if (claimBtn) claimBtn.removeAttribute('disabled');
+          if (hintEl) hintEl.style.display = '';
+          window.currentClosedRound = lastRound;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('refreshLastRoundUI failed', e);
   }
 }
 
@@ -426,13 +492,7 @@ function attachWinnerListenerLocal() {
 function attachRoundCompletedListener() {
   if (!gameContract) return;
 
-  const update = (winner, round, prizePaid, refundPerPlayerFinal) => {
-    text('lastWinner', winner);
-    text('prize', `${ethers.formatUnits(prizePaid, 18)} GCC`);
-    text('refund', `${ethers.formatUnits(refundPerPlayerFinal, 18)} GCC per player`);
-    window.currentClosedRound = Number(round);
-    el('claimBtn')?.removeAttribute('disabled');
-  };
+  const update = () => { refreshLastRoundUI(); };
 
   try {
     gameContract.on('RoundCompleted', update);
@@ -445,7 +505,7 @@ function attachRoundCompletedListener() {
       const filter = gameContract.filters.RoundCompleted();
       const events = await gameContract.queryFilter(filter, -5000);
       if (events.length) {
-        update(...events[events.length - 1].args);
+        await refreshLastRoundUI();
       }
     } catch (e) {
       // silent
@@ -461,6 +521,7 @@ async function claimRefund() {
     const tx = await gameW.claimRefund(window.currentClosedRound);
     const r = await tx.wait();
     showStatus([`Refund claimed.`, `<a target="_blank" href="https://bscscan.com/tx/${r?.hash || tx.hash}">View Tx</a>`]);
+    await refreshLastRoundUI();
   } catch (e) {
     console.error(e);
     showStatus(`❌ ${e?.message || 'Refund claim failed'}`);

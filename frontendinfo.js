@@ -25,3 +25,6 @@ export const BACKEND_URL = 'https://freak2backend.onrender.com';
 
 // No helper functions are defined here.  See freakyfriday.js for UI update
 // logic.
+
+// Constant for zero address checks
+export const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
