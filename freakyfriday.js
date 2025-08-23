@@ -7,7 +7,7 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER, REQUIRED_CHAIN_ID } from './frontendinfo.js';
+import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
@@ -129,82 +129,53 @@ const showStatus = (lines) => {
 };
 
 /* ---------- Mode + Last round ---------- */
-async function isAdminOrRelayer(game, addr) {
-  if (!addr) return false;
-  try {
-    const admin = await game.admin();
-    if (admin && admin.toLowerCase() === addr.toLowerCase()) return true;
-  } catch {}
-  try {
-    if (typeof FREAKY_RELAYER !== 'undefined' &&
-        FREAKY_RELAYER.toLowerCase() === addr.toLowerCase()) return true;
-  } catch {}
-  return false;
+async function getMode(game) {
+  const m = await game.getRoundMode();
+  return Number(m);
 }
 
-function applyThemeForMode(modeNum) {
-  const body = document.body;
+function applyThemeByMode(mode) {
   const badge = document.getElementById('modeBadge');
-  const switchEl = document.getElementById('freakySwitch');
-  const label = document.getElementById('freakySwitchLabel');
+  const body = document.body;
   const modeText = document.getElementById('modeDisplay');
-
-  const isJackpot = Number(modeNum) === 1;
-  if (badge) badge.textContent = isJackpot ? '💀 JACKPOT' : '🔮 STANDARD';
-  body.classList.toggle('freaky', isJackpot);
-  if (switchEl) switchEl.checked = isJackpot;
-  if (label) label.textContent = isJackpot ? 'Jackpot' : 'Standard';
-  if (modeText) modeText.textContent = isJackpot ? 'Jackpot' : 'Standard Ritual';
+  if (mode === 1) {
+    if (badge) badge.textContent = '💀 JACKPOT';
+    body.classList.add('freaky-mode');
+    if (modeText) modeText.textContent = 'Jackpot';
+  } else {
+    if (badge) badge.textContent = '🔮 Standard';
+    body.classList.remove('freaky-mode');
+    if (modeText) modeText.textContent = 'Standard Ritual';
+  }
 }
 
-async function refreshModeUI(game, userAddr) {
+async function refreshModeUI(game) {
   try {
-    if (typeof game?.getRoundMode === 'function') {
-      const modeNum = await game.getRoundMode();
-      applyThemeForMode(modeNum);
-    }
-
-    const adminToggle = document.getElementById('adminModeToggle');
-    if (adminToggle) {
-      const canAdmin = await isAdminOrRelayer(game, userAddr);
-      adminToggle.classList.toggle('hidden', !canAdmin);
-    }
+    const mode = await getMode(game);
+    applyThemeByMode(mode);
   } catch (e) {
     console.error('refreshModeUI error', e);
   }
 }
 
-async function ensureChain(provider) {
-  const net = await provider.getNetwork();
-  if (Number(net.chainId) !== REQUIRED_CHAIN_ID) {
-    alert('Please switch to BSC mainnet to change mode.');
-    throw new Error('Wrong chain');
+async function showAdminPanelIfAuthorized(game, signerAddr, relayerAddr) {
+  try {
+    const adminAddr = (await game.admin()).toLowerCase();
+    const me = (signerAddr || '').toLowerCase();
+    const rel = (relayerAddr || '').toLowerCase();
+    const isAdmin = me === adminAddr || (rel && me === rel);
+    const panel = document.getElementById('adminPanel');
+    if (panel) panel.style.display = isAdmin ? 'block' : 'none';
+    return isAdmin;
+  } catch (e) {
+    console.error('showAdminPanelIfAuthorized error', e);
+    return false;
   }
 }
 
-function wireAdminSwitch(game, signer) {
-  const input = document.getElementById('freakySwitch');
-  if (!input) return;
-  input.addEventListener('change', async (e) => {
-    try {
-      const isJackpot = e.target.checked;
-      const modeVal = isJackpot ? 1 : 0;
-      const addr = await signer.getAddress();
-      if (!(await isAdminOrRelayer(game, addr))) {
-        e.target.checked = !isJackpot;
-        return alert('Only admin/relayer can change mode.');
-      }
-      await ensureChain(provider);
-      const tx = await game.setRoundMode(modeVal);
-      await tx.wait();
-      const newMode = await game.getRoundMode();
-      applyThemeForMode(newMode);
-    } catch (err) {
-      console.error(err);
-      e.target.checked = !e.target.checked;
-      alert('Failed to change mode. See console.');
-    }
-  });
+function setAdminStatus(msg) {
+  const el = document.getElementById('adminStatus');
+  if (el) el.textContent = msg || '';
 }
 
 async function getLastResolvedRound(g) {
@@ -355,23 +326,74 @@ export async function connectWallet() {
     markConnectedUI();
 
     await mountLastWinner(provider);
+    await refreshModeUI(gameContract);
+    const isAdmin = await showAdminPanelIfAuthorized(
+      gameContract,
+      userAddress,
+      FREAKY_RELAYER
+    );
 
-    await refreshModeUI(gameContract, userAddress);
-    wireAdminSwitch(gameContract, signer);
+    if (isAdmin) {
+      const btnStd = document.getElementById('btnModeStandard');
+      const btnJp  = document.getElementById('btnModeJackpot');
+
+      btnStd?.addEventListener('click', async () => {
+        try {
+          btnStd.disabled = btnJp.disabled = true;
+          setAdminStatus('Switching to Standard…');
+          const current = await getMode(gameContract);
+          if (current !== 0) {
+            const tx = await gameContract.setRoundMode(0);
+            setAdminStatus(`Tx sent: ${tx.hash}`);
+            await tx.wait();
+          }
+          await refreshModeUI(gameContract);
+          setAdminStatus('✅ Mode is Standard');
+        } catch (e) {
+          console.error(e);
+          setAdminStatus('❌ Failed to set Standard');
+        } finally {
+          btnStd.disabled = btnJp.disabled = false;
+        }
+      });
+
+      btnJp?.addEventListener('click', async () => {
+        try {
+          btnStd.disabled = btnJp.disabled = true;
+          setAdminStatus('Switching to Jackpot…');
+          const current = await getMode(gameContract);
+          if (current !== 1) {
+            const tx = await gameContract.setRoundMode(1);
+            setAdminStatus(`Tx sent: ${tx.hash}`);
+            await tx.wait();
+          }
+          await refreshModeUI(gameContract);
+          setAdminStatus('✅ Mode is JACKPOT');
+        } catch (e) {
+          console.error(e);
+          setAdminStatus('❌ Failed to set Jackpot');
+        } finally {
+          btnStd.disabled = btnJp.disabled = false;
+        }
+      });
+    }
+
     await refreshLastRound();
     window.addEventListener('focus', async () => {
       const a = (await signer.getAddress?.().catch(() => null)) || null;
-      refreshModeUI(gameContract, a);
+      await refreshModeUI(gameContract);
+      await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
       refreshLastRound();
     });
     if (window.ethereum) {
       window.ethereum.on?.('accountsChanged', async (accs) => {
         const a = accs?.[0] || null;
-        await refreshModeUI(gameContract, a);
+        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
       });
       window.ethereum.on?.('chainChanged', async () => {
         const a = (await signer.getAddress?.().catch(() => null)) || null;
-        await refreshModeUI(gameContract, a);
+        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await refreshModeUI(gameContract);
       });
     }
 
@@ -501,14 +523,14 @@ async function relayJoin() {
 async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
-    refreshModeUI(gameContract || gameRead, connectedAddr),
+    refreshModeUI(gameContract || gameRead),
     refreshLastRound()
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
-    refreshModeUI(gameContract || gameRead, connectedAddr),
+    refreshModeUI(gameContract || gameRead),
     refreshLastRound()
   ]);
 }
@@ -583,7 +605,8 @@ function attachRoundCompletedListener() {
 
   const update = async () => {
     const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-    refreshModeUI(gameContract, a);
+    await refreshModeUI(gameContract);
+    await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
     refreshLastRound();
   };
 
@@ -599,7 +622,8 @@ function attachRoundCompletedListener() {
       const events = await gameContract.queryFilter(filter, -5000);
       if (events.length) {
         const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-        await refreshModeUI(gameContract, a);
+        await refreshModeUI(gameContract);
+        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
         await refreshLastRound();
       }
     } catch (e) {
