@@ -8,8 +8,9 @@
 // - Mobile deep link helper & robust UI handling
 
 import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
-import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead } from './frontendcore.js';
+import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
+import { refreshModeAndLastRound, wireClaim } from './lastRound.js';
 
 // --- Environment detection ---
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -207,7 +208,11 @@ export async function connectWallet() {
 
     await mountLastWinner(provider);
 
-    await refreshModeAndLastRound(gameContract, userAddress);
+    const getUserAddress = async () => (await signer.getAddress());
+    const user = await getUserAddress();
+    await refreshModeAndLastRound(gameContract, user);
+    wireClaim(gameContract, getUserAddress, (s) => setStatus?.(s));
+    window.addEventListener('focus', () => refreshModeAndLastRound(gameContract, user));
 
     // Entry amount (fallback to 50 GCC if view not present)
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
@@ -452,61 +457,6 @@ function attachRoundCompletedListener() {
   })();
 }
 
-async function refreshModeAndLastRound(game, user) {
-  try {
-    // Mode badge
-    if (typeof game.getRoundMode === 'function') {
-      const m = Number(await game.getRoundMode());
-      document.getElementById('modeBadge').textContent = (m === 1) ? '💀 JACKPOT' : '🔮 STANDARD';
-    }
-
-    // Last resolved round
-    const last = await getLastResolvedRound(game);
-    if (!last) {
-      document.getElementById('lastRound').style.display = 'none';
-      return;
-    }
-    const { round, mode, winner, prizePaid, refundPerPlayer } = last;
-    document.getElementById('lastRound').style.display = 'block';
-    document.getElementById('lastRoundNo').textContent = String(round);
-    document.getElementById('lastMode').textContent = (mode === 1) ? 'Jackpot' : 'Standard';
-    document.getElementById('lastWinner').textContent = winner;
-    document.getElementById('lastPrize').textContent = `${ethers.formatUnits(prizePaid,18)} GCC`;
-    document.getElementById('lastRefund').textContent = `${ethers.formatUnits(refundPerPlayer,18)} GCC`;
-
-    // Show claim button if user can claim
-    let showClaim = false;
-    if (mode === 0 && user) {
-      const joined = await game.hasJoinedThisRound(round, user);
-      const already = await game.refundClaimed(round, user);
-      showClaim = joined && !already && refundPerPlayer > 0n;
-    }
-    document.getElementById('claimRefundBtn').style.display = showClaim ? 'inline-block' : 'none';
-  } catch (e) {
-    console.error('refreshModeAndLastRound error', e);
-  }
-}
-
-async function getLastResolvedRound(game) {
-  const cr = Number(await game.currentRound());
-  // Walk back until a resolved one is found (usually cr or cr-1)
-  for (let r = cr; r >= 1 && r >= cr - 3; r--) {
-    const resolved = await game.roundResolved(r).catch(()=>false);
-    if (resolved) {
-      const mode = Number(await game.roundModeAtClose(r).catch(()=>0));
-      const winner = await game.winnerOfRound(r).catch(()=>ethers.ZeroAddress);
-      const refund = await game.refundPerPlayer(r).catch(()=>0n);
-      // Prize can be inferred client-side: Standard = 1 GCC * players, Jackpot = entry * players
-      // If contract emits RoundCompleted(prizePaid, refundPerPlayer), prefer that view if available; otherwise compute:
-      const players = Number(await game.playersInRound(r).catch(()=>0));
-      const entry   = await game.entryAmount().catch(()=>50n*10n**18n);
-      const prize   = (mode === 1) ? BigInt(players) * entry : BigInt(players) * (10n**18n);
-      return { round: r, mode, winner, refundPerPlayer: refund, prizePaid: prize };
-    }
-  }
-  return null;
-}
-
 // --- Event wiring for connect / deeplink buttons ---
 const openInMMTop = document.getElementById('openInMMTop');
 if (openInMMTop) {
@@ -519,22 +469,8 @@ if (openInMMTop) {
 document.getElementById('connectBtn')?.addEventListener('click', connectWallet);
 document.getElementById('connectBtnLower')?.addEventListener('click', connectWallet);
 
-document.getElementById('claimRefundBtn')?.addEventListener('click', async () => {
-  try {
-    const last = await getLastResolvedRound(gameContract);
-    if (!last) return;
-    const tx = await gameContract.claimRefund(last.round);
-    setStatus(`Claiming refund… tx: ${tx.hash}`);
-    await tx.wait();
-    setStatus('✅ Refund claimed');
-    await refreshModeAndLastRound(gameContract, connectedAddr);
-  } catch (e) {
-    console.error(e);
-    setStatus('❌ Claim failed (see console)');
-  }
-});
-
 document.getElementById('deeplink')?.addEventListener('click', (e) => {
   e.preventDefault();
   ensureInMetaMask();
 });
+
