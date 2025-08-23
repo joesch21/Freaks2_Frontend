@@ -438,6 +438,10 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-addr{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:.92rem;color:#dbe3f3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .ff-badge{font-size:.72rem;background:#20324a;color:#9cc6ff;border:1px solid #2a3e5e;border-radius:999px;padding:.1rem .45rem}
 .ff-copy{background:#1e2430;border:1px solid #2c3546;color:#b7c1d8;border-radius:10px;padding:.25rem .5rem}
+
+.mode-badge{font-weight:700;margin:.5rem 0}
+.last-round{font-size:.9rem}
+.last-round button{margin-top:.5rem}
 .ff-copy:hover{background:#263146}
 
 /* Player count & link */

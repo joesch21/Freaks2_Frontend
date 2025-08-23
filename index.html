@@ -65,14 +65,6 @@
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
         <p>Wallet: <span id="walletAddress">—</span></p>
 
-        <div>Winner: <span id="lastWinner">—</span></div>
-        <div>Prize: <span id="prize">—</span></div>
-        <div>Refund each: <span id="refund">—</span></div>
-        <button id="claimBtn" disabled>Claim Refund</button>
-        <div id="claimHint" class="muted" style="display:none;margin-top:.5rem;">
-          If you participated last round in Standard mode, claim your 49 GCC here.
-        </div>
-
         <div class="vault">
           <h3>📊 Ritual Vault</h3>
           <p>GCC in contract: <span id="gccBalance">…</span></p>
@@ -129,6 +121,13 @@
       <h3>Participants</h3>
       <button id="ff-close-participants" class="ff-icon-btn" aria-label="Close">✖</button>
     </div>
+    <div id="modeBadge" class="mode-badge">—</div>
+    <div id="lastRound" class="last-round" style="display:none; margin:.75rem 0;">
+      <div>Last round: <span id="lastRoundNo">—</span> • <span id="lastMode">—</span></div>
+      <div>Winner: <span id="lastWinner">—</span></div>
+      <div>Prize: <span id="lastPrize">—</span> • Refund: <span id="lastRefund">—</span></div>
+      <button id="claimRefundBtn" style="display:none;">💸 Claim your 49 GCC</button>
+    </div>
     <ul id="participantList" class="ff-participants"><li>Loading...</li></ul>
     <div class="ff-drawer-footer">
       <button id="ff-refresh-participants" class="ff-btn-secondary">Refresh</button>
@@ -139,7 +138,7 @@
   <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
 
   <div id="mmHintMount"></div>
-  <button id="connectSticky" class="connect-sticky" aria-label="Connect Wallet (mobile)">
+  <button id="connectBtnLower" class="connect-sticky" aria-label="Connect Wallet (mobile)">
     🔗 Connect Wallet
   </button>
 

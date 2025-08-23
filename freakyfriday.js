@@ -7,8 +7,8 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, BACKEND_URL, ZERO_ADDR } from './frontendinfo.js';
-import { connectWallet as coreConnectWallet, byId, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead } from './frontendcore.js';
+import { FREAKY_CONTRACT, BACKEND_URL } from './frontendinfo.js';
+import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
 // --- Environment detection ---
@@ -29,9 +29,19 @@ function ensureInMetaMask() {
 }
 
 function markConnectedUI() {
-  for (const id of ['connectBtn', 'connectSticky']) {
+  for (const id of ['connectBtn', 'connectBtnLower']) {
     const btn = document.getElementById(id);
     if (btn) { btn.disabled = true; btn.textContent = 'Connected'; }
+  }
+}
+
+function maybeShowDeeplink() {
+  const isMob = /Android|iPhone|iPad/i.test(navigator.userAgent);
+  const deeplink = document.getElementById('deeplink');
+  const wrap = document.getElementById('metamaskLink');
+  if (isMob && deeplink && wrap) {
+    deeplink.href = 'https://metamask.app.link/dapp/freaks2-frontend.onrender.com';
+    wrap.classList.remove('hidden');
   }
 }
 
@@ -137,28 +147,14 @@ async function initApp() {
   hideLoader();
   const approveBtn = el('approveBtn');
   const joinBtn = el('joinBtn');
-  const claimBtn = el('claimBtn');
-  const mmLink = el('metamaskLink');
-  const deeplink = el('deeplink');
 
   if (approveBtn) approveBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
-  claimBtn?.setAttribute('disabled','');
 
-  const ua = navigator.userAgent;
-  const inApp = /Twitter|FBAN|FBAV|Instagram|Telegram|GoogleWebView/i.test(ua);
-
-  if ((!window.ethereum || inApp) && mmLink) {
-    mmLink.classList.remove('hidden');
-    if (deeplink) {
-      const host = window.location.host;
-      deeplink.href = `https://metamask.app.link/dapp/${host}`;
-    }
-  }
+  maybeShowDeeplink();
 
   approveBtn?.addEventListener('click', handleApprove);
   joinBtn?.addEventListener('click', relayJoin);
-  claimBtn?.addEventListener('click', claimRefund);
 
   await refreshReadOnly();
 }
@@ -210,6 +206,8 @@ export async function connectWallet() {
     markConnectedUI();
 
     await mountLastWinner(provider);
+
+    await refreshModeAndLastRound(gameContract, userAddress);
 
     // Entry amount (fallback to 50 GCC if view not present)
     entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
@@ -338,14 +336,14 @@ async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
     updateModeDisplay(),
-    refreshLastRoundUI()
+    refreshModeAndLastRound(gameContract || gameRead, connectedAddr)
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
     updateModeDisplay(),
-    refreshLastRoundUI()
+    refreshModeAndLastRound(gameRead, connectedAddr)
   ]);
 }
 
@@ -392,65 +390,6 @@ async function updateContractBalances() {
 }
 
 /* ---------- Last round info + refund eligibility ---------- */
-async function refreshLastRoundUI() {
-  const winnerEl = el('lastWinner');
-  const prizeEl = el('prize');
-  const refundEl = el('refund');
-  const claimBtn = el('claimBtn');
-  const hintEl = el('claimHint');
-
-  if (claimBtn) claimBtn.setAttribute('disabled', '');
-  if (hintEl) hintEl.style.display = 'none';
-  if (winnerEl) winnerEl.innerText = '—';
-  if (prizeEl) prizeEl.innerText = '—';
-  if (refundEl) refundEl.innerText = '—';
-
-  try {
-    const active = await gameRead.isRoundActive();
-    const cur = Number(await gameRead.currentRound());
-    if (cur === 0) return;
-    const lastRound = active ? cur - 1 : cur;
-    if (lastRound <= 0) return;
-
-    const resolved = await gameRead.roundResolved(lastRound);
-    if (!resolved) return;
-
-    const modeAtClose = Number(await gameRead.roundModeAtClose(lastRound));
-    const winner = await gameRead.winnerOfRound(lastRound);
-    const refundPerPlayer = await gameRead.refundPerPlayer(lastRound);
-
-    if (winnerEl) winnerEl.innerText = winner && winner !== ZERO_ADDR ? winner : '—';
-
-    if (modeAtClose === 0) {
-      const n = Number(await gameRead.playersInRound(lastRound));
-      const prizeWei = ethers.parseUnits(n.toString(), 18);
-      if (prizeEl) prizeEl.innerText = `${ethers.formatUnits(prizeWei, 18)} GCC`;
-      const rpp = BigInt(refundPerPlayer);
-      if (refundEl) refundEl.innerText = rpp > 0n ? `${ethers.formatUnits(rpp, 18)} GCC` : '—';
-    } else {
-      const n = Number(await gameRead.playersInRound(lastRound));
-      const entry = await gameRead.entryAmount();
-      const prizeWei = entry * BigInt(n);
-      if (prizeEl) prizeEl.innerText = `${ethers.formatUnits(prizeWei, 18)} GCC`;
-      if (refundEl) refundEl.innerText = '—';
-    }
-
-    if (connectedAddr && modeAtClose === 0) {
-      const rpp = BigInt(refundPerPlayer);
-      if (rpp > 0n) {
-        const participated = await gameRead.hasJoinedThisRound(lastRound, connectedAddr);
-        const already = await gameRead.refundClaimed(lastRound, connectedAddr);
-        if (participated && !already) {
-          if (claimBtn) claimBtn.removeAttribute('disabled');
-          if (hintEl) hintEl.style.display = '';
-          window.currentClosedRound = lastRound;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('refreshLastRoundUI failed', e);
-  }
-}
 
 /* ---------- Last winner display ---------- */
 
@@ -492,7 +431,7 @@ function attachWinnerListenerLocal() {
 function attachRoundCompletedListener() {
   if (!gameContract) return;
 
-  const update = () => { refreshLastRoundUI(); };
+  const update = () => { refreshModeAndLastRound(gameContract, connectedAddr); };
 
   try {
     gameContract.on('RoundCompleted', update);
@@ -505,7 +444,7 @@ function attachRoundCompletedListener() {
       const filter = gameContract.filters.RoundCompleted();
       const events = await gameContract.queryFilter(filter, -5000);
       if (events.length) {
-        await refreshLastRoundUI();
+        await refreshModeAndLastRound(gameContract, connectedAddr);
       }
     } catch (e) {
       // silent
@@ -513,21 +452,59 @@ function attachRoundCompletedListener() {
   })();
 }
 
-async function claimRefund() {
-  showLoader();
+async function refreshModeAndLastRound(game, user) {
   try {
-    const signer = await provider.getSigner();
-    const gameW = gameContract.connect(signer);
-    const tx = await gameW.claimRefund(window.currentClosedRound);
-    const r = await tx.wait();
-    showStatus([`Refund claimed.`, `<a target="_blank" href="https://bscscan.com/tx/${r?.hash || tx.hash}">View Tx</a>`]);
-    await refreshLastRoundUI();
+    // Mode badge
+    if (typeof game.getRoundMode === 'function') {
+      const m = Number(await game.getRoundMode());
+      document.getElementById('modeBadge').textContent = (m === 1) ? '💀 JACKPOT' : '🔮 STANDARD';
+    }
+
+    // Last resolved round
+    const last = await getLastResolvedRound(game);
+    if (!last) {
+      document.getElementById('lastRound').style.display = 'none';
+      return;
+    }
+    const { round, mode, winner, prizePaid, refundPerPlayer } = last;
+    document.getElementById('lastRound').style.display = 'block';
+    document.getElementById('lastRoundNo').textContent = String(round);
+    document.getElementById('lastMode').textContent = (mode === 1) ? 'Jackpot' : 'Standard';
+    document.getElementById('lastWinner').textContent = winner;
+    document.getElementById('lastPrize').textContent = `${ethers.formatUnits(prizePaid,18)} GCC`;
+    document.getElementById('lastRefund').textContent = `${ethers.formatUnits(refundPerPlayer,18)} GCC`;
+
+    // Show claim button if user can claim
+    let showClaim = false;
+    if (mode === 0 && user) {
+      const joined = await game.hasJoinedThisRound(round, user);
+      const already = await game.refundClaimed(round, user);
+      showClaim = joined && !already && refundPerPlayer > 0n;
+    }
+    document.getElementById('claimRefundBtn').style.display = showClaim ? 'inline-block' : 'none';
   } catch (e) {
-    console.error(e);
-    showStatus(`❌ ${e?.message || 'Refund claim failed'}`);
-  } finally {
-    hideLoader();
+    console.error('refreshModeAndLastRound error', e);
   }
+}
+
+async function getLastResolvedRound(game) {
+  const cr = Number(await game.currentRound());
+  // Walk back until a resolved one is found (usually cr or cr-1)
+  for (let r = cr; r >= 1 && r >= cr - 3; r--) {
+    const resolved = await game.roundResolved(r).catch(()=>false);
+    if (resolved) {
+      const mode = Number(await game.roundModeAtClose(r).catch(()=>0));
+      const winner = await game.winnerOfRound(r).catch(()=>ethers.ZeroAddress);
+      const refund = await game.refundPerPlayer(r).catch(()=>0n);
+      // Prize can be inferred client-side: Standard = 1 GCC * players, Jackpot = entry * players
+      // If contract emits RoundCompleted(prizePaid, refundPerPlayer), prefer that view if available; otherwise compute:
+      const players = Number(await game.playersInRound(r).catch(()=>0));
+      const entry   = await game.entryAmount().catch(()=>50n*10n**18n);
+      const prize   = (mode === 1) ? BigInt(players) * entry : BigInt(players) * (10n**18n);
+      return { round: r, mode, winner, refundPerPlayer: refund, prizePaid: prize };
+    }
+  }
+  return null;
 }
 
 // --- Event wiring for connect / deeplink buttons ---
@@ -540,7 +517,22 @@ if (openInMMTop) {
 }
 
 document.getElementById('connectBtn')?.addEventListener('click', connectWallet);
-document.getElementById('connectSticky')?.addEventListener('click', connectWallet);
+document.getElementById('connectBtnLower')?.addEventListener('click', connectWallet);
+
+document.getElementById('claimRefundBtn')?.addEventListener('click', async () => {
+  try {
+    const last = await getLastResolvedRound(gameContract);
+    if (!last) return;
+    const tx = await gameContract.claimRefund(last.round);
+    setStatus(`Claiming refund… tx: ${tx.hash}`);
+    await tx.wait();
+    setStatus('✅ Refund claimed');
+    await refreshModeAndLastRound(gameContract, connectedAddr);
+  } catch (e) {
+    console.error(e);
+    setStatus('❌ Claim failed (see console)');
+  }
+});
 
 document.getElementById('deeplink')?.addEventListener('click', (e) => {
   e.preventDefault();
