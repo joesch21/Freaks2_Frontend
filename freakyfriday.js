@@ -7,12 +7,17 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, FREAKY_RELAYER } from './frontendinfo.js';
+import { FREAKY_CONTRACT, GCC_TOKEN, FREAKY_RELAYER } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 import { maybeShowTimer } from './frontendtimer.js';
 
-const SPENDER = FREAKY_CONTRACT;
+// Minimal IERC20 ABI
+const erc20 = [
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function decimals() view returns (uint8)"
+];
 
 function setStatus(msg, err) {
   const el = document.getElementById('status');
@@ -362,39 +367,28 @@ async function refreshLastRound() {
 function showLoader(){ el('loader')?.classList?.remove('hidden'); }
 function hideLoader(){ el('loader')?.classList?.add('hidden'); }
 
-function showOverlay(msg){
-  const o = el('overlaySpinner');
-  const m = el('overlayMsg');
-  if (o) o.style.display = 'flex';
-  if (m) m.textContent = msg || 'Working…';
+function showOverlay(msg) {
+  const o = document.getElementById('overlay');
+  const t = document.getElementById('overlayText');
+  if (t) t.textContent = msg || 'Working…';
+  if (o) o.style.display = 'grid';
 }
-function hideOverlay(){ const o = el('overlaySpinner'); if (o) o.style.display = 'none'; }
-function setStep2Msg(msg){ const e = el('step2Msg'); if (e) e.textContent = msg || ''; }
+function hideOverlay(){ const o=document.getElementById('overlay'); if(o) o.style.display='none'; }
 function setStep2Error(msg){
   const e = el('step2Error');
   if (!e) return;
   if (!msg){ e.style.display = 'none'; e.textContent = ''; }
   else { e.style.display = 'block'; e.textContent = msg; }
 }
-function humanizeEthersError(e){
-  return e?.reason || e?.shortMessage || e?.info?.error?.message || e?.message || 'Unknown error';
+function shortErr(e){
+  return e?.shortMessage || e?.reason || e?.data?.message || e?.message || 'Unknown error';
 }
 async function refreshParticipants(){ document.getElementById('ff-refresh-participants')?.click(); }
-
-async function waitForAllowance(addr) {
-  const end = Date.now() + 20000;
-  while (Date.now() < end) {
-    const a = await gccRead.allowance(addr, FREAKY_CONTRACT);
-    if (a >= entryAmount) return true;
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  return false;
-}
 
 async function loadStep2State() {
   const approveBtn = el('btnApproveOnly');
   const enterBtn = el('btnEnterOnly');
-  const joinBtn = el('joinOneClick');
+  const joinBtn = el('joinBtn');
   if (approveBtn) approveBtn.disabled = true;
   if (enterBtn) enterBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
@@ -457,7 +451,7 @@ async function loadStep2State() {
 async function initApp() {
   hideLoader();
   const approveBtn = el('btnApproveOnly');
-  const joinBtn = el('joinOneClick');
+  const joinBtn = el('joinBtn');
   const enterBtn = el('btnEnterOnly');
 
   if (approveBtn) approveBtn.disabled = true;
@@ -468,7 +462,6 @@ async function initApp() {
 
   approveBtn?.addEventListener('click', approveOnly);
   enterBtn?.addEventListener('click', enterOnly);
-  joinBtn?.addEventListener('click', oneClickJoin);
 
   await refreshReadOnly();
 }
@@ -625,6 +618,7 @@ export async function connectWallet() {
       }
     await refreshAll();
     await loadStep2State();
+      wireJoinButton({ provider, signer, gameContract });
   } catch (err) {
     console.error('Connect failed:', err);
     setStatus('❌ Connect failed', err);
@@ -634,51 +628,60 @@ export async function connectWallet() {
 }
 
 /* ---------- Join flows ---------- */
-async function oneClickJoin() {
-  const btn = el('joinOneClick');
-  btn && (btn.disabled = true);
-  setStep2Error('');
-  try {
-    showOverlay('Preparing…');
-    const [active, round, entryAmt, me, chain] = await Promise.all([
-      gameContract.isRoundActive?.(),
-      gameContract.currentRound?.(),
-      gameContract.entryAmount?.(),
-      signer.getAddress?.(),
-      signer.provider?.getNetwork?.()
-    ]);
-    if (chain?.chainId !== 56) throw new Error('Wrong network (switch to BNB mainnet).');
-    if (!active) throw new Error('Round inactive.');
-
-    const already = await gameContract.hasJoinedThisRound?.(round, me);
-    if (already) { hideOverlay(); setStep2Msg('You’re already in ✅'); return; }
-
-    const allowance = await gccRead.allowance(me, SPENDER);
-    if (allowance < entryAmt) {
-      setStep2Msg(`Approving ${ethers.formatUnits(entryAmt,18)} GCC…`);
-      const txA = await gccWrite.approve(SPENDER, entryAmt);
-      showOverlay(`Waiting for approval… ${txA.hash.slice(0,10)}…`);
-      await txA.wait();
-      const ok = await gccRead.allowance(me, SPENDER);
-      if (ok < entryAmt) throw new Error('Approval not detected yet. Try again.');
-    }
-
-    setStep2Msg('Joining…');
-    const txE = await gameContract.enter();
-    showOverlay(`Waiting for join… ${txE.hash.slice(0,10)}…`);
-    await txE.wait();
-
-    await refreshParticipants();
-    await refreshAll();
-    await loadStep2State();
-    hideOverlay();
-    setStep2Msg('Joined 🎉');
-  } catch (err) {
-    console.error('oneClickJoin error', err);
-    hideOverlay();
-    setStep2Error(humanizeEthersError(err));
-    await loadStep2State();
+async function joinRitualOneClick(provider, signer, game) {
+  const me = await signer.getAddress();
+  const chainId = (await provider.getNetwork()).chainId;
+  if (String(chainId) !== '56' && String(chainId) !== '97') {
+    throw new Error('Wrong network — switch to BSC.');
   }
+
+  const active = await game.isRoundActive();
+  if (!active) throw new Error('Round inactive.');
+  const round = await game.currentRound();
+  const already = await game.hasJoinedThisRound(round, me);
+  if (already) throw new Error('You already joined this round.');
+  const entry = await game.entryAmount();
+
+  const gcc = new ethers.Contract(GCC_TOKEN, erc20, signer);
+  const allowance = await gcc.allowance(me, FREAKY_CONTRACT);
+  if (allowance < entry) {
+    showOverlay('Approving GCC…');
+    const txA = await gcc.approve(FREAKY_CONTRACT, entry);
+    await txA.wait();
+  }
+
+  showOverlay('Joining the ritual…');
+  const tx = await game.enter();
+  await tx.wait();
+}
+
+export function wireJoinButton({ provider, signer, gameContract }) {
+  const btn = document.getElementById('joinBtn');
+  if (!btn) return;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await joinRitualOneClick(provider, signer, gameContract);
+      hideOverlay();
+      await refreshParticipants();
+      await refreshAll();
+      await loadStep2State();
+      btn.textContent = '✅ Joined';
+    } catch (e) {
+      hideOverlay();
+      console.error('Join failed', e);
+      btn.disabled = false;
+      const status = document.getElementById('status');
+      if (status) {
+        status.innerHTML = `❌ Join failed — ${shortErr(e)} <a id="retryJoin" href="#">Retry</a>`;
+        document.getElementById('retryJoin')?.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          btn.click();
+        });
+      }
+      setStep2Error(shortErr(e));
+    }
+  };
 }
 
 async function approveOnly() {
@@ -689,7 +692,7 @@ async function approveOnly() {
     await tx.wait();
   } catch (e) {
     console.error(e);
-    setStep2Error(humanizeEthersError(e));
+    setStep2Error(shortErr(e));
   } finally {
     hideOverlay();
     await loadStep2State();
@@ -706,7 +709,7 @@ async function enterOnly() {
     await refreshAll();
   } catch (e) {
     console.error(e);
-    setStep2Error(humanizeEthersError(e));
+    setStep2Error(shortErr(e));
   } finally {
     hideOverlay();
     await loadStep2State();

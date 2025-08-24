@@ -21,12 +21,6 @@
   <!-- Spinner (optional, your existing JS toggles .hidden) -->
   <div id="loader" class="hidden"><div class="spinner"></div></div>
 
-    <!-- Centered blocking spinner -->
-    <div id="overlaySpinner" class="overlay" style="display:none;">
-      <div class="spinner"></div>
-      <div id="overlayMsg" class="overlay-msg">Working…</div>
-    </div>
-
   <div class="mobile-open-bar">
     <button id="openInMMTop" class="deeplink-btn">Open in MetaMask (mobile)</button>
   </div>
@@ -103,7 +97,7 @@
           <button id="connectBtn">🔗 Connect Wallet</button>
           <div id="step2">
             <!-- Primary one-click CTA -->
-            <button id="joinOneClick" class="cta">Join the Ritual</button>
+            <button id="joinBtn" class="cta">Join the Ritual</button>
 
             <!-- Small advanced toggle (collapsed by default) -->
             <details id="advancedSteps" style="margin-top:.5rem;">
@@ -490,5 +484,12 @@
   }, {passive:true});
 })();
 </script>
+<div id="overlay" class="overlay" style="display:none;">
+  <div class="overlay-inner">
+    <div class="spinner"></div>
+    <div id="overlayText">Working…</div>
+  </div>
+</div>
+
 </body>
 </html>
