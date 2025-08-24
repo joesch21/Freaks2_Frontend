@@ -38,6 +38,16 @@
     <div id="adminStatus" class="admin-status"></div>
   </section>
 
+  <div id="roundState" class="round-state">—</div>
+
+  <section id="adminArmPanel" class="admin-panel" style="display:none;">
+    <h3>Admin Controls</h3>
+    <div class="admin-actions">
+      <button id="btnArmRound" class="btn-admin">Open New Round</button>
+    </div>
+    <div id="adminArmStatus" class="admin-status"></div>
+  </section>
+
   <main class="stage">
     <!-- Big scary poster -->
     <figure class="poster" aria-hidden="true">
@@ -73,7 +83,7 @@
 
         <button id="connectBtn">🔗 Connect Wallet</button>
         <button id="approveBtn" disabled>✅ Step 1: Approve 50 GCC to Contract</button>
-        <button id="joinBtn" disabled>🚀 Step 2: Join the Ritual</button>
+        <button id="joinBtn" class="btn-join" disabled>🚀 Step 2: Join the Ritual</button>
 
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
         <p>Wallet: <span id="walletAddress">—</span></p>
@@ -95,7 +105,7 @@
           <span id="ff-joined-badge" class="ff-joined-badge" style="display:none">✅ Already joined this round</span>
 
           <!-- Timer + progress bar -->
-          <div class="ff-timer">
+          <div id="timerContainer" class="ff-timer">
             <div class="ff-timer-row">
               <span id="ff-time-label">Round ends in:</span>
               <span id="countdown">00:00</span>
