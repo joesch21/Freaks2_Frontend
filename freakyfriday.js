@@ -8,8 +8,15 @@
 // - Mobile deep link helper & robust UI handling
 
 import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER } from './frontendinfo.js';
-import { connectWallet as coreConnectWallet, setStatus, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
+import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
+
+function setStatus(msg, err) {
+  const el = document.getElementById('status');
+  if (el) {
+    el.textContent = msg + (err?.message ? ` — ${err.message}` : '');
+  }
+}
 
 // --- Environment detection ---
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -284,7 +291,8 @@ async function getLastResolvedRound(g) {
       const mode = Number(await g.roundModeAtClose(r).catch(() => 0));
       const winner = await g.winnerOfRound(r).catch(() => ethers.ZeroAddress);
       const refund = await g.refundPerPlayer(r).catch(() => 0n);
-      const players = Number(await g.playersInRound(r).catch(() => 0));
+      const fnExists = typeof g.playersInRound === 'function';
+      const players = fnExists ? Number(await g.playersInRound(r)) : 0;
       const entry = await g.entryAmount().catch(() => 50n * 10n**18n);
       const prize = (mode === 1) ? BigInt(players) * entry : BigInt(players) * (10n**18n);
       return { r, mode, winner, refund, prize };
@@ -358,6 +366,92 @@ async function waitForAllowance(addr) {
     await new Promise(r => setTimeout(r, 2000));
   }
   return false;
+}
+
+function showStep2Error(msg, err) {
+  const el = document.getElementById('step2Error');
+  if (!el) return;
+  if (!msg) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = `${msg}${err?.message ? ' — ' + err.message : ''} <button id="retryStep2">Retry</button>`;
+  const btn = document.getElementById('retryStep2');
+  if (btn) btn.onclick = loadStep2State;
+}
+
+async function loadStep2State() {
+  const approveBtn = el('approveBtn');
+  const joinBtn = el('joinBtn');
+  if (approveBtn) approveBtn.disabled = true;
+  if (joinBtn) joinBtn.disabled = true;
+  showStep2Error('');
+
+  try {
+    const net = await provider.getNetwork();
+    if (Number(net?.chainId) !== 56) {
+      showStep2Error('Wrong network, switch to BSC.');
+      return;
+    }
+
+    entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
+
+    const active = await gameContract.isRoundActive();
+    if (!active) {
+      showStep2Error('Round inactive, wait for next round.');
+      return;
+    }
+
+    const r = await gameContract.currentRound();
+    const me = connectedAddr;
+    const joined = await gameContract.hasJoinedThisRound(r, me);
+    const joinedBadge = document.getElementById('ff-joined-badge');
+    if (joinedBadge) joinedBadge.style.display = joined ? 'inline-flex' : 'none';
+    const fnExists = typeof gameContract.playersInRound === 'function';
+    const players = fnExists ? await gameContract.playersInRound(r) : null;
+    const pc = document.getElementById('ff-player-count');
+    if (pc && players !== null) pc.textContent = String(players);
+
+    if (joined) {
+      if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = '✅ Already Joined'; }
+      showStep2Error("You're already in.");
+      attachWinnerListenerLocal();
+      attachPredictedWinnerListener();
+      attachRoundCompletedListener();
+      await loadPredictedWinner();
+      return;
+    }
+
+    const balance = await gccRead.balanceOf(me);
+    if (balance < entryAmount) {
+      showStep2Error('Insufficient GCC balance');
+      return;
+    }
+
+    const allowance = await gccRead.allowance(me, FREAKY_CONTRACT);
+    if (allowance < entryAmount) {
+      if (approveBtn) approveBtn.disabled = false;
+      if (joinBtn) joinBtn.disabled = true;
+      showStep2Error('Allowance too low');
+      return;
+    }
+
+    if (approveBtn) approveBtn.disabled = true;
+    if (joinBtn) {
+      joinBtn.disabled = false;
+      joinBtn.textContent = '🚀 Step 2: Join the Ritual';
+    }
+
+    attachWinnerListenerLocal();
+    attachPredictedWinnerListener();
+    attachRoundCompletedListener();
+    await loadPredictedWinner();
+  } catch (e) {
+    console.error(e);
+    showStep2Error('Network error, tap to retry.', e);
+  }
 }
 
 /* ---------- Init ---------- */
@@ -521,57 +615,11 @@ export async function connectWallet() {
         await refreshModeUI(gameContract);
       });
     }
-
-    // Entry amount (fallback to 50 GCC if view not present)
-    entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
-
-    // User GCC balance check
-    const balance = await gccRead.balanceOf(userAddress);
-    if (balance < entryAmount) {
-      setStatus('❌ Insufficient GCC balance for entry (need 50 GCC).');
-      el('approveBtn').disabled = true;
-      el('joinBtn').disabled = true;
-      await refreshReadOnly();
-      return;
-    }
-
     await refreshAll();
-
-    const allowance = await gccRead.allowance(userAddress, FREAKY_CONTRACT);
-
-    const parts = await gameContract.getParticipants();
-    const joinedBadge = document.getElementById('ff-joined-badge');
-    const already = parts.map(a => a.toLowerCase()).includes(userAddress.toLowerCase());
-    if (joinedBadge) joinedBadge.style.display = already ? 'inline-flex' : 'none';
-    if (already) {
-      setStatus('');
-      const jb = el('joinBtn');
-      if (jb) { jb.disabled = true; jb.textContent = '✅ Already Joined'; }
-      el('approveBtn').disabled = true;
-      attachWinnerListenerLocal();
-      attachPredictedWinnerListener();
-      attachRoundCompletedListener();
-      await loadPredictedWinner();
-      return;
-    }
-
-    const approveBtn = el('approveBtn');
-    const joinBtn = el('joinBtn');
-    if (allowance < entryAmount) {
-      if (approveBtn) approveBtn.disabled = false;
-      if (joinBtn) joinBtn.disabled = true;
-    } else {
-      if (approveBtn) approveBtn.disabled = true;
-      if (joinBtn) joinBtn.disabled = false;
-    }
-
-    attachWinnerListenerLocal();
-    attachPredictedWinnerListener();
-    attachRoundCompletedListener();
-    await loadPredictedWinner();
+    await loadStep2State();
   } catch (err) {
     console.error('Connect failed:', err);
-    setStatus(`❌ ${err?.message || 'Connect failed'}`);
+    setStatus('❌ Connect failed', err);
   } finally {
     hideLoader();
   }
@@ -603,7 +651,7 @@ async function handleApprove() {
     }
   } catch (e) {
     console.error(e);
-    setStatus(`❌ ${e?.message || 'Approval failed'}`);
+    setStatus('❌ Approval failed', e);
   } finally {
     hideLoader();
   }
@@ -641,9 +689,10 @@ async function relayJoin() {
     const jb = el('joinBtn');
     if (jb) { jb.disabled = true; jb.textContent = '✅ Already Joined'; }
     await refreshAll();
+    await loadStep2State();
   } catch (e) {
     console.error(e);
-    setStatus(`❌ ${e?.message || 'Join failed'}`);
+    setStatus('❌ Join failed', e);
   } finally {
     hideLoader();
   }
@@ -689,7 +738,7 @@ async function updateContractBalances() {
     setTextAny(['bnbBalance'], `${ethers.formatUnits(bnbBal, 18)} BNB`);
   } catch (e) {
     console.warn('Balance load failed', e);
-    setStatus('⚠️ Failed to load balances');
+    setStatus('⚠️ Failed to load balances', e);
   }
 }
 
