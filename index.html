@@ -21,11 +21,11 @@
   <!-- Spinner (optional, your existing JS toggles .hidden) -->
   <div id="loader" class="hidden"><div class="spinner"></div></div>
 
-  <!-- Spinner Overlay -->
-  <div id="overlay" class="overlay" style="display:none;">
-    <div class="spinner"></div>
-    <div id="overlayMsg">Working…</div>
-  </div>
+    <!-- Centered blocking spinner -->
+    <div id="overlaySpinner" class="overlay" style="display:none;">
+      <div class="spinner"></div>
+      <div id="overlayMsg" class="overlay-msg">Working…</div>
+    </div>
 
   <div class="mobile-open-bar">
     <button id="openInMMTop" class="deeplink-btn">Open in MetaMask (mobile)</button>
@@ -100,17 +100,23 @@
           <a id="deeplink" class="deeplink" href="https://metamask.app.link/dapp/freaks2-frontend.onrender.com">📱 Open in MetaMask (mobile)</a>
         </p>
 
-        <button id="connectBtn">🔗 Connect Wallet</button>
-        <div id="step2">
-          <button id="joinBtn" class="btn primary" disabled>Join the Ritual</button>
-          <div id="step2Msg" class="muted"></div>
-          <div id="step2Error" class="error"></div>
-          <a id="advancedLink" class="tiny-link">Advanced: use separate steps</a>
-          <div id="advancedPanel" style="display:none;">
-            <button id="approveBtn" class="btn">Approve</button>
-            <button id="enterBtn" class="btn">Join (manual)</button>
+          <button id="connectBtn">🔗 Connect Wallet</button>
+          <div id="step2">
+            <!-- Primary one-click CTA -->
+            <button id="joinOneClick" class="cta">Join the Ritual</button>
+
+            <!-- Small advanced toggle (collapsed by default) -->
+            <details id="advancedSteps" style="margin-top:.5rem;">
+              <summary>Advanced: use separate steps</summary>
+              <div class="advanced-grid">
+                <button id="btnApproveOnly">Approve GCC</button>
+                <button id="btnEnterOnly">Enter</button>
+              </div>
+            </details>
+
+            <!-- Inline error slot near Step 2 -->
+            <div id="step2Error" class="step2-error" style="display:none;"></div>
           </div>
-        </div>
 
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
         <p>Wallet: <span id="walletAddress">—</span></p>
