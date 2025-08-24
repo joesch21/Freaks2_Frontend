@@ -10,6 +10,7 @@
 import { FREAKY_CONTRACT, FREAKY_RELAYER } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
+import { maybeShowTimer } from './frontendtimer.js';
 
 const SPENDER = FREAKY_CONTRACT;
 
@@ -283,6 +284,7 @@ async function armRound(game, me) {
   await tx.wait();
   setArmStatus('✅ New round opened');
   await refreshRoundState(game);
+  await maybeShowTimer(game);
 }
 
 async function getLastResolvedRound(g) {
@@ -517,14 +519,17 @@ export async function connectWallet() {
     text('walletAddress', userAddress);
     markConnectedUI();
 
-    await mountLastWinner(provider);
-    await refreshModeUI(gameContract);
-    await refreshRoundState(gameContract);
-    const isAdmin = await showAdminArmIfAuthorized(
-      gameContract,
-      userAddress,
-      FREAKY_RELAYER
-    );
+      await mountLastWinner(provider);
+      await refreshModeUI(gameContract);
+      await refreshRoundState(gameContract);
+      await maybeShowTimer(gameContract);
+      gameContract.on('Joined', () => maybeShowTimer(gameContract));
+      gameContract.on('RoundCompleted', () => maybeShowTimer(gameContract));
+      const isAdmin = await showAdminArmIfAuthorized(
+        gameContract,
+        userAddress,
+        FREAKY_RELAYER
+      );
     await showAdminPanelIfAuthorized(
       gameContract,
       userAddress,
@@ -592,29 +597,32 @@ export async function connectWallet() {
     }
 
     await refreshLastRound();
-    window.addEventListener('focus', async () => {
-      const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-      await refreshModeUI(gameContract);
-      await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
-      await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-      await refreshRoundState(gameContract);
-      refreshLastRound();
-    });
-    if (window.ethereum) {
-      window.ethereum.on?.('accountsChanged', async (accs) => {
-        const a = accs?.[0] || null;
-        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await refreshRoundState(gameContract);
-      });
-      window.ethereum.on?.('chainChanged', async () => {
-        const a = (await signer.getAddress?.().catch(() => null)) || null;
-        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await refreshRoundState(gameContract);
+      window.addEventListener('focus', async () => {
+        const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
         await refreshModeUI(gameContract);
+        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await refreshRoundState(gameContract);
+        await maybeShowTimer(gameContract);
+        refreshLastRound();
       });
-    }
+      if (window.ethereum) {
+        window.ethereum.on?.('accountsChanged', async (accs) => {
+          const a = accs?.[0] || null;
+          await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await refreshRoundState(gameContract);
+          await maybeShowTimer(gameContract);
+        });
+        window.ethereum.on?.('chainChanged', async () => {
+          const a = (await signer.getAddress?.().catch(() => null)) || null;
+          await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await refreshRoundState(gameContract);
+          await maybeShowTimer(gameContract);
+          await refreshModeUI(gameContract);
+        });
+      }
     await refreshAll();
     await loadStep2State();
   } catch (err) {
@@ -711,7 +719,8 @@ async function refreshAll() {
     updateContractBalances(),
     refreshModeUI(gameContract || gameRead),
     refreshLastRound(),
-    refreshRoundState(gameContract || gameRead)
+    refreshRoundState(gameContract || gameRead),
+    maybeShowTimer(gameContract || gameRead)
   ]);
 }
 async function refreshReadOnly() {
@@ -719,7 +728,8 @@ async function refreshReadOnly() {
     updateContractBalances(),
     refreshModeUI(gameContract || gameRead),
     refreshLastRound(),
-    refreshRoundState(gameContract || gameRead)
+    refreshRoundState(gameContract || gameRead),
+    maybeShowTimer(gameContract || gameRead)
   ]);
 }
 
@@ -791,14 +801,15 @@ function attachWinnerListenerLocal() {
 function attachRoundCompletedListener() {
   if (!gameContract) return;
 
-  const update = async () => {
-    const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-    await refreshModeUI(gameContract);
-    await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
-    await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-    await refreshRoundState(gameContract);
-    refreshLastRound();
-  };
+    const update = async () => {
+      const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
+      await refreshModeUI(gameContract);
+      await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+      await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+      await refreshRoundState(gameContract);
+      await maybeShowTimer(gameContract);
+      refreshLastRound();
+    };
 
   try {
     gameContract.on('RoundCompleted', update);
@@ -809,19 +820,20 @@ function attachRoundCompletedListener() {
   (async () => {
     try {
       const filter = gameContract.filters.RoundCompleted();
-      const events = await gameContract.queryFilter(filter, -5000);
-      if (events.length) {
-        const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-        await refreshModeUI(gameContract);
-        await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-        await refreshLastRound();
-        await refreshRoundState(gameContract);
+        const events = await gameContract.queryFilter(filter, -5000);
+        if (events.length) {
+          const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
+          await refreshModeUI(gameContract);
+          await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+          await refreshLastRound();
+          await refreshRoundState(gameContract);
+          await maybeShowTimer(gameContract);
+        }
+      } catch (e) {
+        // silent
       }
-    } catch (e) {
-      // silent
-    }
-  })();
+    })();
 }
 
 setInterval(() => {
