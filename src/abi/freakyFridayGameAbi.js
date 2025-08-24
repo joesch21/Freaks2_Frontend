@@ -1,4 +1,5 @@
 // ABI for FreakyFridayGame including refund/mode helpers
+// Contains isRoundActive, currentRound, entryAmount, hasJoinedThisRound, playersInRound views
 export default [
 	{
 		"inputs": [

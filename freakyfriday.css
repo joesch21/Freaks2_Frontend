@@ -582,9 +582,17 @@ body.freaky-mode a { color:#e6b3ff; }
 .admin-panel {
   margin-top: 1rem;
   padding: .75rem;
-  border: 1px solid #ddd;
+  border: 1px solid #d7d7d7;
   border-radius: .5rem;
-  background: #fafafa;
+  background: #fff;
+}
+.admin-panel input,
+.admin-panel .label,
+.admin-panel .helper {
+  color: #111;
+}
+.admin-panel .hint {
+  color: #555;
 }
 .admin-actions { display:flex; gap:.5rem; }
 .btn-admin {
