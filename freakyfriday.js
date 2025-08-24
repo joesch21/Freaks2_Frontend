@@ -7,7 +7,7 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER } from './frontendinfo.js';
+import { FREAKY_CONTRACT, FREAKY_RELAYER } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
@@ -361,12 +361,12 @@ function showLoader(){ el('loader')?.classList?.remove('hidden'); }
 function hideLoader(){ el('loader')?.classList?.add('hidden'); }
 
 function showOverlay(msg){
-  const o = el('overlay');
+  const o = el('overlaySpinner');
   const m = el('overlayMsg');
   if (o) o.style.display = 'flex';
   if (m) m.textContent = msg || 'Working…';
 }
-function hideOverlay(){ const o = el('overlay'); if (o) o.style.display = 'none'; }
+function hideOverlay(){ const o = el('overlaySpinner'); if (o) o.style.display = 'none'; }
 function setStep2Msg(msg){ const e = el('step2Msg'); if (e) e.textContent = msg || ''; }
 function setStep2Error(msg){
   const e = el('step2Error');
@@ -390,14 +390,13 @@ async function waitForAllowance(addr) {
 }
 
 async function loadStep2State() {
-  const approveBtn = el('approveBtn');
-  const enterBtn = el('enterBtn');
-  const joinBtn = el('joinBtn');
+  const approveBtn = el('btnApproveOnly');
+  const enterBtn = el('btnEnterOnly');
+  const joinBtn = el('joinOneClick');
   if (approveBtn) approveBtn.disabled = true;
   if (enterBtn) enterBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
   setStep2Error('');
-  setStep2Msg('');
 
   try {
     const net = await provider.getNetwork();
@@ -455,9 +454,9 @@ async function loadStep2State() {
 /* ---------- Init ---------- */
 async function initApp() {
   hideLoader();
-  const approveBtn = el('approveBtn');
-  const joinBtn = el('joinBtn');
-  const enterBtn = el('enterBtn');
+  const approveBtn = el('btnApproveOnly');
+  const joinBtn = el('joinOneClick');
+  const enterBtn = el('btnEnterOnly');
 
   if (approveBtn) approveBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
@@ -465,15 +464,9 @@ async function initApp() {
 
   maybeShowDeeplink();
 
-  approveBtn?.addEventListener('click', handleApprove);
-  enterBtn?.addEventListener('click', relayJoin);
+  approveBtn?.addEventListener('click', approveOnly);
+  enterBtn?.addEventListener('click', enterOnly);
   joinBtn?.addEventListener('click', oneClickJoin);
-
-  document.getElementById('advancedLink')?.addEventListener('click', () => {
-    const panel = el('advancedPanel');
-    if (!panel) return;
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  });
 
   await refreshReadOnly();
 }
@@ -634,7 +627,7 @@ export async function connectWallet() {
 
 /* ---------- Join flows ---------- */
 async function oneClickJoin() {
-  const btn = el('joinBtn');
+  const btn = el('joinOneClick');
   btn && (btn.disabled = true);
   setStep2Error('');
   try {
@@ -680,75 +673,35 @@ async function oneClickJoin() {
   }
 }
 
-async function handleApprove() {
-  showLoader();
+async function approveOnly() {
+  setStep2Error('');
   try {
-    const addr = connectedAddr;
-    const allowance = await gccRead.allowance(addr, FREAKY_CONTRACT);
-    if (allowance < entryAmount) {
-      setStatus('🔐 Approving contract...');
-      const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
-      await tx.wait();
-      setStatus('⏳ Waiting for allowance...');
-      const ok = await waitForAllowance(addr);
-      if (ok) {
-        el('enterBtn').disabled = false;
-        el('approveBtn').disabled = true;
-        setStatus('Approved. You can now Join.');
-      } else {
-        setStatus('⚠️ Approval pending, please try again.');
-      }
-    } else {
-      setStatus('✅ Already approved');
-      el('enterBtn').disabled = false;
-      el('approveBtn').disabled = true;
-    }
+    showOverlay('Approving GCC…');
+    const tx = await gccWrite.approve(FREAKY_CONTRACT, entryAmount);
+    await tx.wait();
   } catch (e) {
     console.error(e);
-    setStatus('❌ Approval failed', e);
+    setStep2Error(humanizeEthersError(e));
   } finally {
-    hideLoader();
+    hideOverlay();
+    await loadStep2State();
   }
 }
 
-async function relayJoin() {
-  showLoader();
+async function enterOnly() {
+  setStep2Error('');
   try {
-    const active = await gameContract.isRoundActive();
-    if (!active) {
-      alert('Round not open yet. Please wait or ask admin to open a new round.');
-      return;
-    }
-    setStatus('🚀 Joining ritual...');
-    const signer = await provider.getSigner();
-    const addr = await signer.getAddress();
-    // Call backend join endpoint which returns enter tx hash
-    const resp = await fetch(`${BACKEND_URL}/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: addr })
-    });
-    const json = await resp.json();
-    if (!json?.success) {
-      throw new Error(json?.error || 'Join failed');
-    }
-
-    const { enterTxHash } = json;
-    showStatus([
-      `You're in!`,
-      `<a target="_blank" href="https://bscscan.com/tx/${enterTxHash}">View Join Tx</a>`,
-      `Refunds (Standard mode) are available after the round closes.`
-    ]);
-    el('approveBtn').disabled = true;
-    const eb = el('enterBtn');
-    if (eb) eb.disabled = true;
+    showOverlay('Joining the Ritual…');
+    const tx = await gameContract.enter();
+    await tx.wait();
+    await refreshParticipants();
     await refreshAll();
-    await loadStep2State();
   } catch (e) {
     console.error(e);
-    setStatus('❌ Join failed', e);
+    setStep2Error(humanizeEthersError(e));
   } finally {
-    hideLoader();
+    hideOverlay();
+    await loadStep2State();
   }
 }
 
