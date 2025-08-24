@@ -597,6 +597,9 @@ body.freaky-mode a { color:#e6b3ff; }
 }
 .btn-admin:disabled { opacity: .5; cursor: not-allowed; }
 .btn-admin.danger { border-color:#9b1c31; color:#9b1c31; }
+.admin-card { border:1px solid #ddd; border-radius:.5rem; padding:.75rem; margin:.75rem 0; background:#fafafa; }
+.admin-card-header { font-weight:700; margin-bottom:.5rem; }
+.sr-only { position:absolute; left:-9999px; }
 
 /* Freaky theme */
 body.freaky-mode {

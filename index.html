@@ -36,6 +36,19 @@
       <button id="btnModeJackpot" class="btn-admin danger">Switch to Jackpot</button>
     </div>
     <div id="adminStatus" class="admin-status"></div>
+    <!-- Max Players Control -->
+    <div class="admin-card">
+      <div class="admin-card-header">Max Players</div>
+      <div class="admin-card-body">
+        <div style="margin-bottom:.5rem;">
+          Current: <strong id="apMaxPlayersCurrent">—</strong>
+        </div>
+        <label for="apMaxPlayersInput" class="sr-only">Set max players</label>
+        <input id="apMaxPlayersInput" type="number" min="2" step="1" placeholder="e.g. 50" style="width:8rem;">
+        <button id="apMaxPlayersSave" class="btn-admin">Save</button>
+        <div id="apMaxPlayersStatus" class="admin-status" style="margin-top:.35rem;"></div>
+      </div>
+    </div>
   </section>
 
   <div id="roundState" class="round-state">—</div>

@@ -158,14 +158,72 @@ async function refreshModeUI(game) {
   }
 }
 
-async function showAdminPanelIfAuthorized(game, signerAddr, relayerAddr) {
+async function isAdminOrRelayer(game, me, relayerAddr) {
   try {
     const adminAddr = (await game.admin()).toLowerCase();
-    const me = (signerAddr || '').toLowerCase();
-    const rel = (relayerAddr || '').toLowerCase();
-    const isAdmin = me === adminAddr || (rel && me === rel);
+    const meL = (me || '').toLowerCase();
+    const relL = (relayerAddr || '').toLowerCase();
+    return meL === adminAddr || (!!relL && meL === relL);
+  } catch {
+    return false;
+  }
+}
+
+async function refreshMaxPlayersUI(game) {
+  const elCur = document.getElementById('apMaxPlayersCurrent');
+  if (!elCur) return;
+  try {
+    const cur = await game.maxPlayers();
+    elCur.textContent = String(cur);
+  } catch (e) {
+    console.error('maxPlayers() failed', e);
+    elCur.textContent = '—';
+  }
+}
+
+function setMaxPlayersStatus(msg) {
+  const s = document.getElementById('apMaxPlayersStatus');
+  if (s) s.textContent = msg || '';
+}
+
+function wireMaxPlayersControls(game) {
+  const input = document.getElementById('apMaxPlayersInput');
+  const btn   = document.getElementById('apMaxPlayersSave');
+  if (!input || !btn || btn.dataset.wired === '1') return;
+
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    try {
+      const val = Number(input.value);
+      if (!Number.isInteger(val) || val < 2) {
+        setMaxPlayersStatus('Enter an integer ≥ 2.');
+        return;
+      }
+      btn.disabled = true;
+      setMaxPlayersStatus('Sending transaction…');
+      const tx = await game.setMaxPlayers(val);
+      setMaxPlayersStatus(`Tx: ${tx.hash}`);
+      await tx.wait();
+      setMaxPlayersStatus('✅ Updated');
+      await refreshMaxPlayersUI(game);
+    } catch (e) {
+      console.error(e);
+      setMaxPlayersStatus('❌ Failed to update (see console)');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+async function showAdminPanelIfAuthorized(game, signerAddr, relayerAddr) {
+  try {
+    const isAdmin = await isAdminOrRelayer(game, signerAddr, relayerAddr);
     const panel = document.getElementById('adminPanel');
     if (panel) panel.style.display = isAdmin ? 'block' : 'none';
+    if (isAdmin) {
+      await refreshMaxPlayersUI(game);
+      wireMaxPlayersControls(game);
+    }
     return isAdmin;
   } catch (e) {
     console.error('showAdminPanelIfAuthorized error', e);
@@ -199,8 +257,7 @@ async function refreshRoundState(game) {
 }
 
 async function showAdminArmIfAuthorized(game, me, relayerAddr) {
-  const adminAddr = (await game.admin()).toLowerCase();
-  const isAdmin = (me || '').toLowerCase() === adminAddr || (relayerAddr && (me || '').toLowerCase() === relayerAddr.toLowerCase());
+  const isAdmin = await isAdminOrRelayer(game, me, relayerAddr);
   const panel = document.getElementById('adminArmPanel');
   if (panel) panel.style.display = isAdmin ? 'block' : 'none';
   return isAdmin;
