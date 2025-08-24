@@ -199,7 +199,6 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .deeplink { color: #00ff88; font-weight: 700; }
 
 .round-state { margin:.5rem 0; opacity:.9; }
-.btn-join[disabled] { opacity:.5; cursor:not-allowed; }
 
 /* Sticky bottom connect button */
 .connect-sticky {
@@ -289,7 +288,7 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 /* Spinner (basic) */
 #loader { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.45); z-index: 9; }
 #loader.hidden { display: none !important; pointer-events: none !important; opacity: 0 !important; }
-.spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin 1s linear infinite; }
+.spinner { width:54px;height:54px;border-radius:50%;border:6px solid #ffffff66;border-top-color:#fff;animation:spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ============== Dynamic Poster FX ============== */
@@ -627,3 +626,13 @@ body.freaky-mode .btn-admin.danger {
   background: #3a003f;
   border-color: #ff4db3;
 }
+
+/* One-click join helpers */
+.overlay{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.55); z-index:9999; backdrop-filter: blur(2px);
+}
+.error{ color:#ff6b6b; margin-top:.4rem; }
+.muted{ color:#cfcfd6; margin-top:.25rem; }
+.tiny-link{ font-size:.85rem; opacity:.8; display:inline-block; margin-top:.5rem; }
+.btn.primary:disabled{ opacity:.6; cursor:not-allowed; }

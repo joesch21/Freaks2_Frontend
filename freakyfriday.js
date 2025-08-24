@@ -11,6 +11,8 @@ import { FREAKY_CONTRACT, BACKEND_URL, FREAKY_RELAYER } from './frontendinfo.js'
 import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
 
+const SPENDER = FREAKY_CONTRACT;
+
 function setStatus(msg, err) {
   const el = document.getElementById('status');
   if (el) {
@@ -358,6 +360,25 @@ async function refreshLastRound() {
 function showLoader(){ el('loader')?.classList?.remove('hidden'); }
 function hideLoader(){ el('loader')?.classList?.add('hidden'); }
 
+function showOverlay(msg){
+  const o = el('overlay');
+  const m = el('overlayMsg');
+  if (o) o.style.display = 'flex';
+  if (m) m.textContent = msg || 'Working…';
+}
+function hideOverlay(){ const o = el('overlay'); if (o) o.style.display = 'none'; }
+function setStep2Msg(msg){ const e = el('step2Msg'); if (e) e.textContent = msg || ''; }
+function setStep2Error(msg){
+  const e = el('step2Error');
+  if (!e) return;
+  if (!msg){ e.style.display = 'none'; e.textContent = ''; }
+  else { e.style.display = 'block'; e.textContent = msg; }
+}
+function humanizeEthersError(e){
+  return e?.reason || e?.shortMessage || e?.info?.error?.message || e?.message || 'Unknown error';
+}
+async function refreshParticipants(){ document.getElementById('ff-refresh-participants')?.click(); }
+
 async function waitForAllowance(addr) {
   const end = Date.now() + 20000;
   while (Date.now() < end) {
@@ -368,45 +389,34 @@ async function waitForAllowance(addr) {
   return false;
 }
 
-function showStep2Error(msg, err) {
-  const el = document.getElementById('step2Error');
-  if (!el) return;
-  if (!msg) {
-    el.style.display = 'none';
-    el.innerHTML = '';
-    return;
-  }
-  el.style.display = 'block';
-  el.innerHTML = `${msg}${err?.message ? ' — ' + err.message : ''} <button id="retryStep2">Retry</button>`;
-  const btn = document.getElementById('retryStep2');
-  if (btn) btn.onclick = loadStep2State;
-}
-
 async function loadStep2State() {
   const approveBtn = el('approveBtn');
+  const enterBtn = el('enterBtn');
   const joinBtn = el('joinBtn');
   if (approveBtn) approveBtn.disabled = true;
+  if (enterBtn) enterBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
-  showStep2Error('');
+  setStep2Error('');
+  setStep2Msg('');
 
   try {
     const net = await provider.getNetwork();
     if (Number(net?.chainId) !== 56) {
-      showStep2Error('Wrong network, switch to BSC.');
+      setStep2Error('Wrong network, switch to BSC.');
       return;
     }
 
-    entryAmount = await gameContract.entryAmount().catch(() => ethers.parseUnits('50', 18));
+    entryAmount = await gameContract.entryAmount?.().catch(() => ethers.parseUnits('50', 18));
 
-    const active = await gameContract.isRoundActive();
+    const active = await gameContract.isRoundActive?.();
     if (!active) {
-      showStep2Error('Round inactive, wait for next round.');
+      if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = 'Round inactive'; }
       return;
     }
 
-    const r = await gameContract.currentRound();
+    const r = await gameContract.currentRound?.();
     const me = connectedAddr;
-    const joined = await gameContract.hasJoinedThisRound(r, me);
+    const joined = await gameContract.hasJoinedThisRound?.(r, me);
     const joinedBadge = document.getElementById('ff-joined-badge');
     if (joinedBadge) joinedBadge.style.display = joined ? 'inline-flex' : 'none';
     const fnExists = typeof gameContract.playersInRound === 'function';
@@ -415,34 +425,22 @@ async function loadStep2State() {
     if (pc && players !== null) pc.textContent = String(players);
 
     if (joined) {
-      if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = '✅ Already Joined'; }
-      showStep2Error("You're already in.");
-      attachWinnerListenerLocal();
-      attachPredictedWinnerListener();
-      attachRoundCompletedListener();
-      await loadPredictedWinner();
+      if (joinBtn) { joinBtn.disabled = true; joinBtn.textContent = 'You’re in ✅'; }
       return;
     }
 
     const balance = await gccRead.balanceOf(me);
     if (balance < entryAmount) {
-      showStep2Error('Insufficient GCC balance');
+      if (joinBtn) joinBtn.disabled = true;
+      setStep2Error('Insufficient GCC balance');
       return;
     }
 
     const allowance = await gccRead.allowance(me, FREAKY_CONTRACT);
-    if (allowance < entryAmount) {
-      if (approveBtn) approveBtn.disabled = false;
-      if (joinBtn) joinBtn.disabled = true;
-      showStep2Error('Allowance too low');
-      return;
-    }
+    if (approveBtn) approveBtn.disabled = allowance >= entryAmount;
+    if (enterBtn) enterBtn.disabled = allowance < entryAmount;
 
-    if (approveBtn) approveBtn.disabled = true;
-    if (joinBtn) {
-      joinBtn.disabled = false;
-      joinBtn.textContent = '🚀 Step 2: Join the Ritual';
-    }
+    if (joinBtn) { joinBtn.disabled = false; joinBtn.textContent = 'Join the Ritual'; }
 
     attachWinnerListenerLocal();
     attachPredictedWinnerListener();
@@ -450,7 +448,7 @@ async function loadStep2State() {
     await loadPredictedWinner();
   } catch (e) {
     console.error(e);
-    showStep2Error('Network error, tap to retry.', e);
+    setStep2Error('Network error, tap to retry.');
   }
 }
 
@@ -459,14 +457,23 @@ async function initApp() {
   hideLoader();
   const approveBtn = el('approveBtn');
   const joinBtn = el('joinBtn');
+  const enterBtn = el('enterBtn');
 
   if (approveBtn) approveBtn.disabled = true;
   if (joinBtn) joinBtn.disabled = true;
+  if (enterBtn) enterBtn.disabled = true;
 
   maybeShowDeeplink();
 
   approveBtn?.addEventListener('click', handleApprove);
-  joinBtn?.addEventListener('click', relayJoin);
+  enterBtn?.addEventListener('click', relayJoin);
+  joinBtn?.addEventListener('click', oneClickJoin);
+
+  document.getElementById('advancedLink')?.addEventListener('click', () => {
+    const panel = el('advancedPanel');
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
 
   await refreshReadOnly();
 }
@@ -625,7 +632,54 @@ export async function connectWallet() {
   }
 }
 
-/* ---------- Approve + Join ---------- */
+/* ---------- Join flows ---------- */
+async function oneClickJoin() {
+  const btn = el('joinBtn');
+  btn && (btn.disabled = true);
+  setStep2Error('');
+  try {
+    showOverlay('Preparing…');
+    const [active, round, entryAmt, me, chain] = await Promise.all([
+      gameContract.isRoundActive?.(),
+      gameContract.currentRound?.(),
+      gameContract.entryAmount?.(),
+      signer.getAddress?.(),
+      signer.provider?.getNetwork?.()
+    ]);
+    if (chain?.chainId !== 56) throw new Error('Wrong network (switch to BNB mainnet).');
+    if (!active) throw new Error('Round inactive.');
+
+    const already = await gameContract.hasJoinedThisRound?.(round, me);
+    if (already) { hideOverlay(); setStep2Msg('You’re already in ✅'); return; }
+
+    const allowance = await gccRead.allowance(me, SPENDER);
+    if (allowance < entryAmt) {
+      setStep2Msg(`Approving ${ethers.formatUnits(entryAmt,18)} GCC…`);
+      const txA = await gccWrite.approve(SPENDER, entryAmt);
+      showOverlay(`Waiting for approval… ${txA.hash.slice(0,10)}…`);
+      await txA.wait();
+      const ok = await gccRead.allowance(me, SPENDER);
+      if (ok < entryAmt) throw new Error('Approval not detected yet. Try again.');
+    }
+
+    setStep2Msg('Joining…');
+    const txE = await gameContract.enter();
+    showOverlay(`Waiting for join… ${txE.hash.slice(0,10)}…`);
+    await txE.wait();
+
+    await refreshParticipants();
+    await refreshAll();
+    await loadStep2State();
+    hideOverlay();
+    setStep2Msg('Joined 🎉');
+  } catch (err) {
+    console.error('oneClickJoin error', err);
+    hideOverlay();
+    setStep2Error(humanizeEthersError(err));
+    await loadStep2State();
+  }
+}
+
 async function handleApprove() {
   showLoader();
   try {
@@ -638,7 +692,7 @@ async function handleApprove() {
       setStatus('⏳ Waiting for allowance...');
       const ok = await waitForAllowance(addr);
       if (ok) {
-        el('joinBtn').disabled = false;
+        el('enterBtn').disabled = false;
         el('approveBtn').disabled = true;
         setStatus('Approved. You can now Join.');
       } else {
@@ -646,7 +700,7 @@ async function handleApprove() {
       }
     } else {
       setStatus('✅ Already approved');
-      el('joinBtn').disabled = false;
+      el('enterBtn').disabled = false;
       el('approveBtn').disabled = true;
     }
   } catch (e) {
@@ -686,8 +740,8 @@ async function relayJoin() {
       `Refunds (Standard mode) are available after the round closes.`
     ]);
     el('approveBtn').disabled = true;
-    const jb = el('joinBtn');
-    if (jb) { jb.disabled = true; jb.textContent = '✅ Already Joined'; }
+    const eb = el('enterBtn');
+    if (eb) eb.disabled = true;
     await refreshAll();
     await loadStep2State();
   } catch (e) {

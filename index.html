@@ -21,6 +21,12 @@
   <!-- Spinner (optional, your existing JS toggles .hidden) -->
   <div id="loader" class="hidden"><div class="spinner"></div></div>
 
+  <!-- Spinner Overlay -->
+  <div id="overlay" class="overlay" style="display:none;">
+    <div class="spinner"></div>
+    <div id="overlayMsg">Working…</div>
+  </div>
+
   <div class="mobile-open-bar">
     <button id="openInMMTop" class="deeplink-btn">Open in MetaMask (mobile)</button>
   </div>
@@ -95,9 +101,16 @@
         </p>
 
         <button id="connectBtn">🔗 Connect Wallet</button>
-        <button id="approveBtn" disabled>✅ Step 1: Approve 50 GCC to Contract</button>
-        <button id="joinBtn" class="btn-join" disabled>🚀 Step 2: Join the Ritual</button>
-        <div id="step2Error" class="status" style="display:none"></div>
+        <div id="step2">
+          <button id="joinBtn" class="btn primary" disabled>Join the Ritual</button>
+          <div id="step2Msg" class="muted"></div>
+          <div id="step2Error" class="error"></div>
+          <a id="advancedLink" class="tiny-link">Advanced: use separate steps</a>
+          <div id="advancedPanel" style="display:none;">
+            <button id="approveBtn" class="btn">Approve</button>
+            <button id="enterBtn" class="btn">Join (manual)</button>
+          </div>
+        </div>
 
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
         <p>Wallet: <span id="walletAddress">—</span></p>
