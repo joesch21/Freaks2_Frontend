@@ -198,6 +198,9 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .dock-inner { padding: 14px 16px; height: 100%; overflow: auto; }
 .deeplink { color: #00ff88; font-weight: 700; }
 
+.round-state { margin:.5rem 0; opacity:.9; }
+.btn-join[disabled] { opacity:.5; cursor:not-allowed; }
+
 /* Sticky bottom connect button */
 .connect-sticky {
   position: sticky; /* sits just above the bottom safe area */

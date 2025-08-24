@@ -178,6 +178,47 @@ function setAdminStatus(msg) {
   if (el) el.textContent = msg || '';
 }
 
+async function refreshRoundState(game) {
+  try {
+    const active = await game.isRoundActive();
+    const stateEl = document.getElementById('roundState');
+    const joinBtn = document.getElementById('joinBtn');
+
+    if (active) {
+      if (stateEl) stateEl.textContent = 'Round active';
+      if (joinBtn) { joinBtn.disabled = false; joinBtn.title = ''; }
+      document.getElementById('timerContainer')?.style?.setProperty('display','block');
+    } else {
+      if (stateEl) stateEl.textContent = 'Round inactive — waiting to open';
+      if (joinBtn) { joinBtn.disabled = true; joinBtn.title = 'Round is not armed yet.'; }
+      document.getElementById('timerContainer')?.style?.setProperty('display','none');
+    }
+  } catch (e) {
+    console.error('refreshRoundState error', e);
+  }
+}
+
+async function showAdminArmIfAuthorized(game, me, relayerAddr) {
+  const adminAddr = (await game.admin()).toLowerCase();
+  const isAdmin = (me || '').toLowerCase() === adminAddr || (relayerAddr && (me || '').toLowerCase() === relayerAddr.toLowerCase());
+  const panel = document.getElementById('adminArmPanel');
+  if (panel) panel.style.display = isAdmin ? 'block' : 'none';
+  return isAdmin;
+}
+
+function setArmStatus(msg) {
+  const el = document.getElementById('adminArmStatus');
+  if (el) el.textContent = msg || '';
+}
+
+async function armRound(game, me) {
+  const tx = await game.relayedEnter(me);
+  setArmStatus(`Arming… tx: ${tx.hash}`);
+  await tx.wait();
+  setArmStatus('✅ New round opened');
+  await refreshRoundState(game);
+}
+
 async function getLastResolvedRound(g) {
   const cr = Number(await g.currentRound().catch(() => 0));
   for (let r = cr; r >= 1 && r >= cr - 3; r--) {
@@ -327,7 +368,13 @@ export async function connectWallet() {
 
     await mountLastWinner(provider);
     await refreshModeUI(gameContract);
-    const isAdmin = await showAdminPanelIfAuthorized(
+    await refreshRoundState(gameContract);
+    const isAdmin = await showAdminArmIfAuthorized(
+      gameContract,
+      userAddress,
+      FREAKY_RELAYER
+    );
+    await showAdminPanelIfAuthorized(
       gameContract,
       userAddress,
       FREAKY_RELAYER
@@ -336,6 +383,7 @@ export async function connectWallet() {
     if (isAdmin) {
       const btnStd = document.getElementById('btnModeStandard');
       const btnJp  = document.getElementById('btnModeJackpot');
+      const armBtn = document.getElementById('btnArmRound');
 
       btnStd?.addEventListener('click', async () => {
         try {
@@ -376,23 +424,43 @@ export async function connectWallet() {
           btnStd.disabled = btnJp.disabled = false;
         }
       });
+
+      armBtn?.addEventListener('click', async () => {
+        try {
+          const active = await gameContract.isRoundActive();
+          if (active) { setArmStatus('Already active.'); return; }
+          armBtn.disabled = true;
+          await armRound(gameContract, userAddress);
+        } catch (e) {
+          console.error(e);
+          setArmStatus('❌ Failed to open (check GCC balance/allowance).');
+        } finally {
+          armBtn.disabled = false;
+        }
+      });
     }
 
     await refreshLastRound();
     window.addEventListener('focus', async () => {
-      const a = (await signer.getAddress?.().catch(() => null)) || null;
+      const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
       await refreshModeUI(gameContract);
       await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+      await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+      await refreshRoundState(gameContract);
       refreshLastRound();
     });
     if (window.ethereum) {
       window.ethereum.on?.('accountsChanged', async (accs) => {
         const a = accs?.[0] || null;
         await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await refreshRoundState(gameContract);
       });
       window.ethereum.on?.('chainChanged', async () => {
         const a = (await signer.getAddress?.().catch(() => null)) || null;
         await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await refreshRoundState(gameContract);
         await refreshModeUI(gameContract);
       });
     }
@@ -487,6 +555,11 @@ async function handleApprove() {
 async function relayJoin() {
   showLoader();
   try {
+    const active = await gameContract.isRoundActive();
+    if (!active) {
+      alert('Round not open yet. Please wait or ask admin to open a new round.');
+      return;
+    }
     setStatus('🚀 Joining ritual...');
     const signer = await provider.getSigner();
     const addr = await signer.getAddress();
@@ -524,14 +597,16 @@ async function refreshAll() {
   await Promise.all([
     updateContractBalances(),
     refreshModeUI(gameContract || gameRead),
-    refreshLastRound()
+    refreshLastRound(),
+    refreshRoundState(gameContract || gameRead)
   ]);
 }
 async function refreshReadOnly() {
   await Promise.all([
     updateContractBalances(),
     refreshModeUI(gameContract || gameRead),
-    refreshLastRound()
+    refreshLastRound(),
+    refreshRoundState(gameContract || gameRead)
   ]);
 }
 
@@ -607,6 +682,8 @@ function attachRoundCompletedListener() {
     const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
     await refreshModeUI(gameContract);
     await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+    await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
+    await refreshRoundState(gameContract);
     refreshLastRound();
   };
 
@@ -624,13 +701,20 @@ function attachRoundCompletedListener() {
         const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
         await refreshModeUI(gameContract);
         await showAdminPanelIfAuthorized(gameContract, a, FREAKY_RELAYER);
+        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
         await refreshLastRound();
+        await refreshRoundState(gameContract);
       }
     } catch (e) {
       // silent
     }
   })();
 }
+
+setInterval(() => {
+  const g = gameContract || gameRead;
+  if (g) refreshRoundState(g);
+}, 15000);
 
 // --- Event wiring for connect / deeplink buttons ---
 const openInMMTop = document.getElementById('openInMMTop');
