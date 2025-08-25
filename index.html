@@ -160,35 +160,30 @@
   <!-- Dim overlay -->
   <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
 
-  <!-- Last Round pull-out -->
-  <aside id="lastRoundPanel" class="last-round hidden" aria-live="polite">
-    <button id="lastRoundToggle" class="last-round__toggle" aria-expanded="false" aria-controls="lastRoundBody">
-      Last Round
-    </button>
-
-    <div id="lastRoundBody" class="last-round__body" hidden>
-      <div class="lr-row">
-        <span>Round:</span> <strong id="lrRound">—</strong>
-        <span class="lr-sep">•</span>
-        <span id="lrMode">—</span>
-      </div>
-      <div class="lr-row">
-        <span>Winner:</span> <code id="lrWinner">—</code>
-      </div>
-      <div class="lr-row">
-        <span>Prize:</span> <strong id="lrPrize">—</strong>
-        <span class="lr-sep">•</span>
-        <span>Refund:</span> <strong id="lrRefund">—</strong>
-      </div>
-
-      <button id="lrClaimBtn" class="btn-claim" hidden>💸 Claim refund</button>
-      <div id="lrMsg" class="lr-msg" hidden></div>
-    </div>
-  </aside>
-
   <div id="mmHintMount"></div>
   <button id="connectBtnBottom" class="btn connect-sticky" aria-label="Connect Wallet (mobile)">
     🔗 Connect Wallet
+  </button>
+
+  <!-- Last Round Pull-out -->
+  <aside id="lastRoundDrawer" class="drawer drawer-right" aria-hidden="true">
+    <button id="lastRoundClose" class="drawer-close" aria-label="Close">×</button>
+    <h3 class="drawer-title">Last Round</h3>
+
+    <div class="drawer-body">
+      <div class="lr-row">Round: <span id="lrRoundNo">—</span> • <span id="lrMode">—</span></div>
+      <div class="lr-row">Winner: <span id="lrWinner">—</span></div>
+      <div class="lr-row">Prize: <span id="lrPrize">—</span></div>
+      <div class="lr-row">Refund/player: <span id="lrRefund">—</span></div>
+
+      <button id="lrClaimBtn" class="btn-claim" style="display:none;">💸 Claim refund</button>
+      <div id="lrError" class="lr-error" style="display:none;"></div>
+    </div>
+  </aside>
+
+  <!-- Pull tab (like Rules), positioned right -->
+  <button id="lastRoundTab" class="drawer-tab drawer-tab-right" aria-controls="lastRoundDrawer">
+    Last&nbsp;Round
   </button>
 
   <!-- Rules Tab Trigger -->
