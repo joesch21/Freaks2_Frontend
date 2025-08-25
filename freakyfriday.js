@@ -5,6 +5,10 @@ import erc20Abi from './erc20Abi.js';
 
 let provider, signer, connectedAddress, game, gcc;
 
+function hasFn(contract, name) {
+  return contract && typeof contract[name] === 'function';
+}
+
 function shortErr(e) {
   return (e?.reason || e?.shortMessage || e?.message || 'Unknown error').split('\n')[0].slice(0, 160);
 }
@@ -91,6 +95,89 @@ async function getBalances(game, signer, gcc, addr) {
   return { need: BigInt(need), bal: BigInt(bal), allowance: BigInt(allowance) };
 }
 
+async function getLastResolvedRound(game) {
+  if (!hasFn(game, 'currentRound') || !hasFn(game, 'roundResolved')) return null;
+  const cr = Number(await game.currentRound());
+  for (let r = Math.max(1, cr); r >= Math.max(1, cr - 3); r--) {
+    const resolved = await game.roundResolved(r).catch(() => false);
+    if (resolved) {
+      const mode   = hasFn(game, 'roundModeAtClose') ? Number(await game.roundModeAtClose(r).catch(() => 0)) : 0;
+      const winner = hasFn(game, 'winnerOfRound')    ? await game.winnerOfRound(r).catch(() => ethers.ZeroAddress) : ethers.ZeroAddress;
+      const refund = hasFn(game, 'refundPerPlayer')  ? await game.refundPerPlayer(r).catch(() => 0n) : 0n;
+
+      let prize = 0n;
+      if (hasFn(game, 'playersInRound')) {
+        const players = BigInt(await game.playersInRound(r).catch(() => 0));
+        const entry   = hasFn(game, 'entryAmount') ? BigInt(await game.entryAmount().catch(() => 0)) : 0n;
+        prize = (mode === 1) ? players * entry : players * (10n ** 18n);
+      }
+      return { round: r, mode, winner, refundPerPlayer: refund, prizePaid: prize };
+    }
+  }
+  return null;
+}
+
+async function refreshLastRoundUI(game, userAddr) {
+  const box = document.getElementById('lastRound');
+  const errEl = document.getElementById('lastRoundError');
+  if (!box || !errEl) return;
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  try {
+    const last = await getLastResolvedRound(game);
+    if (!last) { box.style.display = 'none'; return; }
+
+    const { round, mode, winner, prizePaid, refundPerPlayer } = last;
+    box.style.display = 'block';
+    document.getElementById('lastRoundNo').textContent = String(round);
+    document.getElementById('lastMode').textContent = (mode === 1) ? 'Jackpot' : 'Standard';
+    document.getElementById('lastWinner').textContent = winner;
+    document.getElementById('lastPrize').textContent = prizePaid ? `${ethers.formatUnits(prizePaid,18)} GCC` : '—';
+    document.getElementById('lastRefund').textContent = refundPerPlayer ? `${ethers.formatUnits(refundPerPlayer,18)} GCC` : '—';
+
+    const canShow =
+      hasFn(game, 'hasJoinedThisRound') &&
+      hasFn(game, 'refundClaimed') &&
+      hasFn(game, 'claimRefund');
+
+    const btn = document.getElementById('claimRefundBtn');
+    if (!canShow || !userAddr) {
+      if (btn) btn.style.display = 'none';
+      return;
+    }
+
+    const joined  = await game.hasJoinedThisRound(round, userAddr).catch(() => false);
+    const claimed = await game.refundClaimed(round, userAddr).catch(() => true);
+    const refundable = (refundPerPlayer || 0n) > 0n;
+
+    const showBtn = joined && !claimed && refundable && mode === 0;
+    if (btn) {
+      btn.style.display = showBtn ? 'inline-block' : 'none';
+      if (showBtn) {
+        btn.onclick = async () => {
+          try {
+            btn.disabled = true;
+            const tx = await game.claimRefund(round);
+            await tx.wait();
+            await refreshLastRoundUI(game, userAddr);
+          } catch (e) {
+            console.error('claimRefund failed', e);
+            errEl.style.display = 'block';
+            errEl.textContent = e?.reason || e?.shortMessage || e?.message || 'Refund failed';
+          } finally {
+            btn.disabled = false;
+          }
+        };
+      }
+    }
+  } catch (e) {
+    console.error('refreshLastRoundUI error', e);
+    errEl.style.display = 'block';
+    errEl.textContent = e?.reason || e?.shortMessage || e?.message || 'Last round load failed';
+  }
+}
+
 function setOpenStatus(msg) {
   const el = document.getElementById('openStatus');
   if (el) el.textContent = msg || '';
@@ -160,6 +247,8 @@ async function loadStep2State() {
       game.hasJoinedThisRound(round, connectedAddress),
       gcc.allowance(connectedAddress, FREAKY_CONTRACT),
     ]);
+
+    await refreshLastRoundUI(game, connectedAddress);
 
     const timerEl = document.getElementById('timerContainer');
     if (active) {
