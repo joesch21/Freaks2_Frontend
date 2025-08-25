@@ -2,3 +2,13 @@ export const FREAKY_CONTRACT = "0x2a37F0325bcA2B71cF7f2189796Fb9BC1dEBc9C9";
 export const GCC_TOKEN       = "0x092aC429b9c3450c9909433eB0662c3b7c13cF9A";
 export const FREAKY_RELAYER  = "0xd5422b7493e65c5b5cbfd70028df2D2ED8A39CDE";
 export const BSC_CHAIN_ID    = 56;
+
+// expose to window for non-module scripts
+if (typeof window !== 'undefined') {
+  window.AppConfig = {
+    FREAKY_CONTRACT,
+    GCC_TOKEN,
+    FREAKY_RELAYER,
+    BSC_CHAIN_ID,
+  };
+}

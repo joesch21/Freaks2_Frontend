@@ -32,7 +32,7 @@
     <h3>Admin Controls</h3>
 
     <div class="row">
-      <button id="btnOpenRound" class="btn-admin">Open New Round</button>
+      <button id="btnOpenRound" class="btn btn-admin">Open New Round</button>
       <div id="openStatus" class="status-line"></div>
     </div>
 
@@ -42,7 +42,7 @@
         <div class="helper">Current: <span id="maxPlayersCurrent">—</span></div>
         <input id="maxPlayersInput" type="number" min="2" inputmode="numeric" placeholder="e.g. 50"/>
       </div>
-      <button id="btnSaveMax" class="btn-admin">Save</button>
+      <button id="btnSaveMax" class="btn btn-admin">Save</button>
       <span id="maxPlayersMsg" class="hint"></span>
     </div>
   </section>
@@ -80,14 +80,15 @@
           <a id="deeplink" class="deeplink" href="https://metamask.app.link/dapp/freaks2-frontend.onrender.com">📱 Open in MetaMask (mobile)</a>
         </p>
 
-          <button id="connectBtn">🔗 Connect Wallet</button>
+          <button id="connectBtnTop" class="btn">🔗 Connect Wallet</button>
           <div id="step2">
-            <button id="btnJoin" class="btn-primary">Join the Ritual</button>
+            <button id="btnJoin" class="btn btn-primary">Join the Ritual</button>
             <div id="step2Msg" class="hint"></div>
+            <div id="step2Error" class="hint" style="display:none;"></div>
           </div>
           <div id="advancedSteps" class="advanced" style="display:none;">
-            <button id="btnApprove" class="btn-secondary">Approve GCC</button>
-            <button id="btnEnter" class="btn-secondary">Enter</button>
+            <button id="btnApprove" class="btn btn-secondary">Approve GCC</button>
+            <button id="btnEnter" class="btn btn-secondary">Enter</button>
           </div>
 
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
@@ -153,7 +154,7 @@
   <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
 
   <div id="mmHintMount"></div>
-  <button id="connectBtnLower" class="connect-sticky" aria-label="Connect Wallet (mobile)">
+  <button id="connectBtnBottom" class="btn connect-sticky" aria-label="Connect Wallet (mobile)">
     🔗 Connect Wallet
   </button>
 

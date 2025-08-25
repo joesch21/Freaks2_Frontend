@@ -3,21 +3,63 @@ import { FREAKY_CONTRACT, GCC_TOKEN, BSC_CHAIN_ID } from './frontendinfo.js';
 import { startTimer, stopTimer } from './frontendtimer.js';
 import erc20Abi from './erc20Abi.js';
 
-let provider, signer, account, game, gcc;
+let provider, signer, connectedAddress, game, gcc;
 
-async function init() {
-  if (!window.ethereum) return;
-  provider = new ethers.BrowserProvider(window.ethereum, 'any');
-  await provider.send('eth_requestAccounts', []);
-  await ensureChain();
-  signer = await provider.getSigner();
-  account = await signer.getAddress();
-  game = new ethers.Contract(FREAKY_CONTRACT, abi, signer);
-  gcc  = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
+function shortErr(e) {
+  return (e?.reason || e?.shortMessage || e?.message || 'Unknown error').split('\n')[0].slice(0, 160);
+}
 
-  await paintModeAndState();
-  wireJoin();
-  wireAdmin();
+function showError(msg) {
+  const el = document.getElementById('step2Error');
+  if (el) {
+    el.style.display = 'block';
+    el.innerHTML = `${msg} <button id="retryStep2">Retry</button>`;
+    const btn = document.getElementById('retryStep2');
+    if (btn) btn.onclick = loadStep2State;
+  }
+}
+
+function setConnectButtonsEnabled(on) {
+  ['connectBtnTop','connectBtnBottom'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.disabled = !on;
+  });
+}
+
+function toggleOverlay(on, text) {
+  const o = document.getElementById('overlay');
+  const t = document.getElementById('overlayText');
+  if (o) o.style.display = on ? 'block' : 'none';
+  if (t && text) t.textContent = text;
+}
+
+async function connectWallet() {
+  setConnectButtonsEnabled(false);
+  try {
+    if (!window.ethereum) {
+      window.location.href = 'https://metamask.app.link/dapp/freaks2-frontend.onrender.com';
+      return;
+    }
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    signer = await provider.getSigner();
+    connectedAddress = (await signer.getAddress()).toLowerCase();
+
+    game = new ethers.Contract(FREAKY_CONTRACT, abi, signer);
+    gcc  = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
+
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== BSC_CHAIN_ID) {
+      showError('Wrong network: please switch to BSC');
+    }
+
+    wireUiAfterConnect();
+  } catch (e) {
+    console.error('connectWallet failed', e);
+    showError(shortErr(e));
+  } finally {
+    setConnectButtonsEnabled(true);
+  }
 }
 
 async function ensureChain() {
@@ -54,25 +96,6 @@ function setOpenStatus(msg) {
   if (el) el.textContent = msg || '';
 }
 
-async function paintModeAndState() {
-  try {
-    const active = await game.isRoundActive();
-    const timerEl = document.getElementById('timerContainer');
-    if (active) {
-      if (timerEl) timerEl.style.display = 'block';
-      startTimer(game);
-    } else {
-      stopTimer();
-      if (timerEl) timerEl.style.display = 'none';
-    }
-    await refreshMode();
-    await refreshAdminVisibility();
-    await refreshMaxPlayers();
-  } catch (e) {
-    console.error('paint state failed', e);
-  }
-}
-
 async function refreshMode() {
   try {
     const mode = Number(await game.getRoundMode());
@@ -85,23 +108,53 @@ async function refreshMode() {
   }
 }
 
-function showRetry(msgId, fn) {
-  const el = document.getElementById(msgId);
-  if (!el) return;
-  const btn = document.createElement('button');
-  btn.textContent = 'Retry';
-  btn.style.marginLeft = '.5rem';
-  btn.onclick = () => { el.textContent = ''; fn(); };
-  el.appendChild(btn);
-}
+async function loadStep2State() {
+  try {
+    const errEl = document.getElementById('step2Error');
+    if (errEl) { errEl.style.display = 'none'; errEl.innerHTML = ''; }
+    const btn = document.getElementById('btnJoin');
+    if (btn) btn.disabled = true;
+    setMsg('step2Msg', 'Loading…');
 
-function friendlyError(e) {
-  const s = (e?.info?.error?.message || e?.shortMessage || e?.message || '').toString();
-  if (/insufficient allowance|allowance/i.test(s)) return 'allowance too low';
-  if (/user rejected|denied/i.test(s)) return 'user rejected';
-  if (/wrong network|chain/i.test(s)) return 'wrong network';
-  if (/already|joined/i.test(s)) return 'already joined';
-  return s || 'network error';
+    await ensureChain();
+
+    const round = await game.currentRound();
+    const [active, need, joined, allowance] = await Promise.all([
+      game.isRoundActive(),
+      game.entryAmount(),
+      game.hasJoinedThisRound(round, connectedAddress),
+      gcc.allowance(connectedAddress, FREAKY_CONTRACT),
+    ]);
+
+    const timerEl = document.getElementById('timerContainer');
+    if (active) {
+      if (timerEl) timerEl.style.display = 'block';
+      startTimer(game);
+    } else {
+      stopTimer();
+      if (timerEl) timerEl.style.display = 'none';
+    }
+
+    await refreshMode();
+    await refreshAdminVisibility();
+    await refreshMaxPlayers();
+
+    if (!active) {
+      setMsg('step2Msg', 'Round inactive — waiting to open');
+      return;
+    }
+
+    if (joined) {
+      setMsg('step2Msg', "You're in", 'success');
+      return;
+    }
+
+    setMsg('step2Msg', '');
+    if (btn) btn.disabled = false;
+  } catch (e) {
+    console.error('loadStep2State failed', e);
+    showError(shortErr(e));
+  }
 }
 
 async function wireJoin() {
@@ -118,30 +171,33 @@ async function wireJoin() {
       if (!active) { setMsg(msgId, 'Round inactive.', 'error'); return; }
 
       const round = Number(await game.currentRound());
-      const already = await game.hasJoinedThisRound(round, account);
+      const already = await game.hasJoinedThisRound(round, connectedAddress);
       if (already) { setMsg(msgId, 'You already joined.', 'success'); return; }
 
       const need = BigInt(await game.entryAmount());
-      const allow = await gcc.allowance(account, FREAKY_CONTRACT);
+      const allow = await gcc.allowance(connectedAddress, FREAKY_CONTRACT);
 
       if (allow < need) {
         setMsg(msgId, 'Approving GCC…');
+        toggleOverlay(true, 'Approving GCC…');
         const txA = await gcc.approve(FREAKY_CONTRACT, need);
         await txA.wait();
+        toggleOverlay(false);
       }
 
       setMsg(msgId, 'Joining…');
+      toggleOverlay(true, 'Joining…');
       const txE = await game.enter();
       await txE.wait();
+      toggleOverlay(false);
 
       setMsg(msgId, '✅ Joined!', 'success');
-      await paintModeAndState();
+      await loadStep2State();
     } catch (e) {
       console.error('Join flow failed', e);
-      const reason = friendlyError(e);
-      setMsg(msgId, `❌ Join failed — ${reason}`, 'error');
-      showRetry(msgId, wireJoin);
+      showError(`Join failed — ${shortErr(e)}`);
     } finally {
+      toggleOverlay(false);
       btn.disabled = false;
     }
   };
@@ -150,7 +206,7 @@ async function wireJoin() {
 async function refreshAdminVisibility() {
   try {
     const [adm, rel] = await Promise.all([game.admin(), game.relayer()]);
-    const me = account?.toLowerCase();
+    const me = connectedAddress?.toLowerCase();
     const show = [adm, rel].map(a => a?.toLowerCase?.()).includes(me);
     const panel = document.getElementById('adminPanel');
     if (panel) panel.style.display = show ? 'block' : 'none';
@@ -182,7 +238,7 @@ async function wireAdmin() {
         btnOpen.disabled = true;
         setOpenStatus('Checking balance & allowance…');
 
-        const me = account;
+        const me = connectedAddress;
         const [adminAddr, relayerAddr] = await Promise.all([game.admin(), game.relayer()]);
         const isAdminAddr = [adminAddr, relayerAddr].map(a => a?.toLowerCase()).includes(me.toLowerCase());
         if (!isAdminAddr) { setOpenStatus('Not authorized.'); return; }
@@ -196,21 +252,26 @@ async function wireAdmin() {
 
         if (allowance < need) {
           setOpenStatus('Approving GCC…');
+          toggleOverlay(true, 'Approving GCC…');
           const tx1 = await gcc.approve(FREAKY_CONTRACT, need);
           await tx1.wait();
+          toggleOverlay(false);
         }
 
         setOpenStatus('Opening round…');
+        toggleOverlay(true, 'Opening round…');
         const tx2 = await game.relayedEnter(me);
         setOpenStatus(`Tx sent: ${tx2.hash} (waiting)…`);
         await tx2.wait();
+        toggleOverlay(false);
 
         setOpenStatus('✅ Round opened!');
-        await paintModeAndState();
+        await loadStep2State();
       } catch (e) {
         console.error('Open round failed', e);
         setOpenStatus(`❌ Failed to open — ${e.reason || e.shortMessage || e.message}`);
       } finally {
+        toggleOverlay(false);
         btnOpen.disabled = false;
       }
     };
@@ -233,10 +294,25 @@ async function wireAdmin() {
         await refreshMaxPlayers();
       } catch (e) {
         console.error('setMaxPlayers failed', e);
-        setMsg(msgId, `❌ Save failed — ${friendlyError(e)}`, 'error');
+        setMsg(msgId, `❌ Save failed — ${shortErr(e)}`, 'error');
       }
     };
   }
 }
 
-window.addEventListener('load', init);
+function wireUiAfterConnect() {
+  const w = document.getElementById('walletAddress');
+  if (w) w.textContent = connectedAddress;
+  wireJoin();
+  wireAdmin();
+  loadStep2State();
+}
+
+window.addEventListener('load', () => {
+  const joinBtn = document.getElementById('btnJoin');
+  if (joinBtn) joinBtn.disabled = true;
+  ['connectBtnTop','connectBtnBottom'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', connectWallet);
+  });
+});
