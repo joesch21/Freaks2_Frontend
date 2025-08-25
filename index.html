@@ -28,8 +28,14 @@
   <!-- Mode Badge -->
   <div id="modeBadge" class="mode-badge">—</div>
 
+  <!-- Admin Panel (hidden unless admin/relayer) -->
   <section id="adminPanel" class="admin-panel" style="display:none;">
     <h3>Admin Controls</h3>
+    <div class="admin-actions">
+      <button id="btnModeStandard" class="btn-admin">Switch to Standard</button>
+      <button id="btnModeJackpot"  class="btn-admin danger">Switch to Jackpot</button>
+    </div>
+    <div id="adminStatus" class="admin-status"></div>
 
     <div class="row">
       <button id="btnOpenRound" class="btn btn-admin">Open New Round</button>

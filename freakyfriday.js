@@ -1,5 +1,5 @@
 import abi from './abi/freakyFridayGameAbi.js';
-import { FREAKY_CONTRACT, GCC_TOKEN, BSC_CHAIN_ID } from './frontendinfo.js';
+import { FREAKY_CONTRACT, GCC_TOKEN, FREAKY_RELAYER, BSC_CHAIN_ID } from './frontendinfo.js';
 import { startTimer, stopTimer } from './frontendtimer.js';
 import erc20Abi from './erc20Abi.js';
 
@@ -53,7 +53,7 @@ async function connectWallet() {
       showError('Wrong network: please switch to BSC');
     }
 
-    wireUiAfterConnect();
+    await wireUiAfterConnect();
   } catch (e) {
     console.error('connectWallet failed', e);
     showError(shortErr(e));
@@ -96,16 +96,51 @@ function setOpenStatus(msg) {
   if (el) el.textContent = msg || '';
 }
 
-async function refreshMode() {
-  try {
-    const mode = Number(await game.getRoundMode());
-    const badge = document.getElementById('modeBadge');
-    if (badge) badge.textContent = mode === 1 ? '💀 JACKPOT' : '🔮 Standard';
-    const modeDisplay = document.getElementById('modeDisplay');
-    if (modeDisplay) modeDisplay.textContent = mode === 1 ? 'Jackpot' : 'Standard Ritual';
-  } catch (e) {
-    console.error('mode fetch failed', e);
+async function readMode(game) {
+  if (typeof game.getRoundMode === 'function') {
+    return Number(await game.getRoundMode());
   }
+  if (typeof game.roundMode === 'function') {
+    return Number(await game.roundMode());
+  }
+  throw new Error('Mode getters missing in ABI');
+}
+
+function paintMode(mode) {
+  const badge = document.getElementById('modeBadge');
+  const body  = document.body;
+  if (!badge) return;
+  if (mode === 1) {
+    badge.textContent = '💀 JACKPOT';
+    body.classList.add('freaky-mode');
+  } else {
+    badge.textContent = '🔮 Standard';
+    body.classList.remove('freaky-mode');
+  }
+  const modeDisplay = document.getElementById('modeDisplay');
+  if (modeDisplay) modeDisplay.textContent = mode === 1 ? 'Jackpot' : 'Standard Ritual';
+}
+
+async function refreshMode(game) {
+  try { paintMode(await readMode(game)); }
+  catch (e) { console.error('Mode read failed', e); }
+}
+
+async function canSeeAdmin(game, myAddr, relayerAddr) {
+  try {
+    const admin = (await game.admin()).toLowerCase();
+    const me    = (myAddr||'').toLowerCase();
+    const rel   = (relayerAddr||'').toLowerCase();
+    return me === admin || (rel && me === rel);
+  } catch (e) {
+    console.error('admin() read failed', e);
+    return false;
+  }
+}
+
+function setAdminStatus(msg) {
+  const el = document.getElementById('adminStatus');
+  if (el) el.textContent = msg || '';
 }
 
 async function loadStep2State() {
@@ -135,7 +170,7 @@ async function loadStep2State() {
       if (timerEl) timerEl.style.display = 'none';
     }
 
-    await refreshMode();
+    await refreshMode(game);
     await refreshAdminVisibility();
     await refreshMaxPlayers();
 
@@ -205,9 +240,7 @@ async function wireJoin() {
 
 async function refreshAdminVisibility() {
   try {
-    const [adm, rel] = await Promise.all([game.admin(), game.relayer()]);
-    const me = connectedAddress?.toLowerCase();
-    const show = [adm, rel].map(a => a?.toLowerCase?.()).includes(me);
+    const show = await canSeeAdmin(game, connectedAddress, FREAKY_RELAYER);
     const panel = document.getElementById('adminPanel');
     if (panel) panel.style.display = show ? 'block' : 'none';
     return show;
@@ -228,8 +261,54 @@ async function refreshMaxPlayers() {
 }
 
 async function wireAdmin() {
-  const isAdmin = await refreshAdminVisibility();
-  if (!isAdmin) return;
+  const show = await refreshAdminVisibility();
+  if (!show) return;
+
+  const btnStd = document.getElementById('btnModeStandard');
+  const btnJp  = document.getElementById('btnModeJackpot');
+  if (btnStd && btnJp) {
+    btnStd.addEventListener('click', async () => {
+      try {
+        btnStd.disabled = btnJp.disabled = true;
+        setAdminStatus('Switching to Standard…');
+        const cur = await readMode(game);
+        if (cur !== 0) {
+          const tx = await game.setRoundMode(0);
+          setAdminStatus(`Tx sent: ${tx.hash}`);
+          await tx.wait();
+        }
+        await refreshMode(game);
+        setAdminStatus('✅ Mode is Standard');
+      } catch (e) {
+        console.error(e);
+        setAdminStatus(`❌ Failed: ${e?.shortMessage || e?.reason || e?.message || 'Unknown error'}`);
+      } finally {
+        btnStd.disabled = btnJp.disabled = false;
+      }
+    });
+
+    btnJp.addEventListener('click', async () => {
+      try {
+        btnStd.disabled = btnJp.disabled = true;
+        setAdminStatus('Switching to Jackpot…');
+        const cur = await readMode(game);
+        if (cur !== 1) {
+          const tx = await game.setRoundMode(1);
+          setAdminStatus(`Tx sent: ${tx.hash}`);
+          await tx.wait();
+        }
+        await refreshMode(game);
+        setAdminStatus('✅ Mode is JACKPOT');
+      } catch (e) {
+        console.error(e);
+        setAdminStatus(`❌ Failed: ${e?.shortMessage || e?.reason || e?.message || 'Unknown error'}`);
+      } finally {
+        btnStd.disabled = btnJp.disabled = false;
+      }
+    });
+  }
+
+  await refreshMaxPlayers();
 
   const btnOpen = document.getElementById('btnOpenRound');
   if (btnOpen) {
@@ -300,12 +379,13 @@ async function wireAdmin() {
   }
 }
 
-function wireUiAfterConnect() {
+async function wireUiAfterConnect() {
   const w = document.getElementById('walletAddress');
   if (w) w.textContent = connectedAddress;
+  await refreshMode(game);
   wireJoin();
   wireAdmin();
-  loadStep2State();
+  await loadStep2State();
 }
 
 window.addEventListener('load', () => {
