@@ -132,6 +132,15 @@
               <span id="lastWinnerAddr">–</span>
             </p>
           </section>
+
+          <!-- Last resolved round info -->
+          <div id="lastRound" class="last-round" style="display:none;margin:.75rem 0;">
+            <div>Last round: <span id="lastRoundNo">—</span> • <span id="lastMode">—</span></div>
+            <div>Winner: <span id="lastWinner">—</span></div>
+            <div>Prize: <span id="lastPrize">—</span> • Refund: <span id="lastRefund">—</span></div>
+            <button id="claimRefundBtn" style="display:none;">💸 Claim your refund</button>
+            <div id="lastRoundError" class="hint" style="display:none;color:#b00;font-size:.9em;"></div>
+          </div>
         </div>
       </div>
     </aside>
@@ -163,30 +172,6 @@
   <button id="connectBtnBottom" class="btn connect-sticky" aria-label="Connect Wallet (mobile)">
     🔗 Connect Wallet
   </button>
-
-  <button id="openLastRound" class="pill">Last Round</button>
-
-  <aside id="lastRoundPanel" class="drawer right" style="display:none;">
-    <header>
-      <h3>Last Round</h3>
-      <button class="drawer-close" aria-label="Close">×</button>
-    </header>
-    <div class="drawer-body">
-      <div>Last round: <span id="lr_round">—</span> • <span id="lr_mode">—</span></div>
-      <div>Winner: <span id="lr_winner">—</span></div>
-      <div>Prize: <span id="lr_prize">—</span></div>
-      <div>Refund: <span id="lr_refund">—</span></div>
-      <button id="lr_claim" class="primary" style="margin-top:.75rem; display:none;">💸 Claim refund</button>
-      <p id="lr_hint" class="muted" style="display:none; margin-top:.25rem;">If you opened from Safari/Chrome, this page likely deeplinked into MetaMask. Tap the button again if asked.</p>
-    </div>
-  </aside>
-
-  <script>
-    document.getElementById('openLastRound')?.addEventListener('click', () =>
-      document.getElementById('lastRoundPanel')?.classList.add('open'));
-    document.querySelector('#lastRoundPanel .drawer-close')?.addEventListener('click', () =>
-      document.getElementById('lastRoundPanel')?.classList.remove('open'));
-  </script>
 
   <!-- Rules Tab Trigger -->
   <button id="rulesTab" aria-controls="rulesDrawer" aria-expanded="false">Rules</button>

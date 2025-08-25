@@ -1,4 +1,4 @@
-// ABI for FreakyFridayGame including refund/mode helpers
+// ABI for FreakyFridayGame including refund/mode/winner helpers
 // Contains isRoundActive, currentRound, entryAmount, hasJoinedThisRound, playersInRound views
 const freakyFridayGameAbi = [
 	{
