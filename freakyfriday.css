@@ -105,6 +105,9 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
   pointer-events: none;
 }
 
+.btn { opacity:1; }
+.btn[disabled] { opacity:.55; cursor:not-allowed; }
+
 .btn-primary, .btn-secondary, .btn-admin {
   font-weight: 700;
   padding: .65rem .9rem;
@@ -114,9 +117,6 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
   color: #111;
 }
 .btn-primary { background: #4ade80; border-color: #16a34a; }
-.btn-primary:disabled,
-.btn-secondary:disabled,
-.btn-admin:disabled { opacity: .6; cursor: not-allowed; }
 
 .hint { color: #555; margin-top: .35rem; min-height: 1.2em; }
 .error { color: #b91c1c; }

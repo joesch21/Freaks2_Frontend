@@ -1,6 +1,6 @@
 // ABI for FreakyFridayGame including refund/mode helpers
 // Contains isRoundActive, currentRound, entryAmount, hasJoinedThisRound, playersInRound views
-export default [
+const freakyFridayGameAbi = [
 	{
 		"inputs": [
 			{
@@ -725,5 +725,12 @@ export default [
 		],
 		"stateMutability": "view",
 		"type": "function"
-	}
+        }
 ];
+
+export default freakyFridayGameAbi;
+
+// Expose on window for non-module scripts
+if (typeof window !== 'undefined') {
+  window.FreakyAbi = freakyFridayGameAbi;
+}
