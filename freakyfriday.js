@@ -6,6 +6,13 @@ import erc20Abi from './erc20Abi.js';
 
 let provider, signer, connectedAddress, game, gcc;
 
+const lrDrawer = document.getElementById('lastRoundDrawer');
+const lrOpen   = document.getElementById('lastRoundTab');
+const lrClose  = document.getElementById('lastRoundClose');
+
+lrOpen?.addEventListener('click', () => lrDrawer?.classList.add('open'));
+lrClose?.addEventListener('click', () => lrDrawer?.classList.remove('open'));
+
 function hasFn(contract, name) {
   return contract && typeof contract[name] === 'function';
 }
@@ -36,6 +43,13 @@ function toggleOverlay(on, text) {
   const t = document.getElementById('overlayText');
   if (o) o.style.display = on ? 'block' : 'none';
   if (t && text) t.textContent = text;
+}
+
+function setLRError(msg) {
+  const el = document.getElementById('lrError');
+  if (!el) return;
+  el.style.display = msg ? 'block' : 'none';
+  el.textContent = msg || '';
 }
 
 async function connectWallet() {
@@ -122,75 +136,75 @@ async function findLastResolved(game) {
   return null;
 }
 
-export async function refreshLastRoundUI(game, user) {
-  const panel = document.getElementById('lastRoundPanel');
-  const body  = document.getElementById('lastRoundBody');
-  const toggle= document.getElementById('lastRoundToggle');
-  const msgEl = document.getElementById('lrMsg');
-  const btn   = document.getElementById('lrClaimBtn');
-
-  // Hide entirely if core fns missing
-  const fnOk = hasFn(game, 'roundResolved') && hasFn(game, 'refundPerPlayer');
-  if (!panel || !fnOk) { if (panel) panel.classList.add('hidden'); return; }
-
-  // Toggle behavior
-  if (toggle && body) {
-    toggle.onclick = () => {
-      const open = body.hasAttribute('hidden') ? false : true;
-      if (open) { body.setAttribute('hidden',''); toggle.setAttribute('aria-expanded','false'); }
-      else { body.removeAttribute('hidden'); toggle.setAttribute('aria-expanded','true'); }
-    };
-  }
-
+export async function refreshLastRoundUI(game, userAddr) {
   try {
+    setLRError('');
+    const tab = document.getElementById('lastRoundTab');
+    const fnOk = hasFn(game, 'roundResolved') && hasFn(game, 'refundPerPlayer');
+    if (!fnOk) {
+      if (tab) tab.style.display = 'none';
+      if (lrDrawer) lrDrawer.style.display = 'none';
+      return;
+    }
+
     const data = await findLastResolved(game);
-    if (!data) { panel.classList.add('hidden'); return; }
+    if (!data) {
+      if (tab) tab.style.display = 'none';
+      if (lrDrawer) lrDrawer.style.display = 'none';
+      return;
+    }
 
-    panel.classList.remove('hidden');
-    document.getElementById('lrRound').textContent  = String(data.round);
-    document.getElementById('lrMode').textContent   = (data.mode === 1) ? 'Jackpot' : 'Standard';
-    document.getElementById('lrWinner').textContent = data.winner;
-    document.getElementById('lrPrize').textContent  = data.prize ? `${ethers.formatUnits(data.prize, 18)} GCC` : '—';
-    document.getElementById('lrRefund').textContent = data.refund ? `${ethers.formatUnits(data.refund, 18)} GCC` : '—';
+    if (tab) tab.style.display = '';
+    if (lrDrawer) lrDrawer.style.display = '';
 
-    // Determine refund eligibility
+    document.getElementById('lrRoundNo').textContent = String(data.round);
+    document.getElementById('lrMode').textContent    = data.mode === 1 ? 'Jackpot' : 'Standard';
+    document.getElementById('lrWinner').textContent  = data.winner;
+    document.getElementById('lrPrize').textContent   = data.prize ? `${ethers.formatUnits(data.prize, 18)} GCC` : '—';
+    document.getElementById('lrRefund').textContent  = data.refund ? `${ethers.formatUnits(data.refund, 18)} GCC` : '—';
+
+    const btn = document.getElementById('lrClaimBtn');
     const showBtn = Boolean(
-      user &&
+      userAddr &&
       hasFn(game,'hasJoinedThisRound') &&
       hasFn(game,'refundClaimed') &&
       hasFn(game,'claimRefund')
     );
 
-    if (!showBtn) { btn.hidden = true; return; }
+    if (!showBtn) {
+      btn.style.display = 'none';
+      btn.onclick = null;
+      return;
+    }
 
-    const joined  = await game.hasJoinedThisRound(data.round, user).catch(() => false);
-    const claimed = await game.refundClaimed(data.round, user).catch(() => true);
+    const joined  = await game.hasJoinedThisRound(data.round, userAddr).catch(() => false);
+    const claimed = await game.refundClaimed(data.round, userAddr).catch(() => true);
     const refundable = (data.refund || 0n) > 0n;
-    const eligible = joined && !claimed && refundable && data.mode === 0; // refunds only in Standard
+    const eligible = joined && !claimed && refundable && data.mode === 0;
 
-    btn.hidden = !eligible;
-    msgEl.hidden = true; msgEl.textContent = '';
+    if (!eligible) {
+      btn.style.display = 'none';
+      btn.onclick = null;
+      return;
+    }
 
-    if (!eligible) return;
-
+    btn.style.display = 'inline-block';
     btn.onclick = async () => {
       try {
         btn.disabled = true;
         const tx = await game.claimRefund(data.round);
-        msgEl.hidden = false; msgEl.textContent = `Tx sent: ${tx.hash}`;
         await tx.wait();
-        await refreshLastRoundUI(game, user);
+        await refreshLastRoundUI(game, userAddr);
       } catch (e) {
         console.error('claimRefund failed', e);
-        msgEl.hidden = false;
-        msgEl.textContent = e?.reason || e?.shortMessage || e?.message || 'Refund failed';
+        setLRError(e?.reason || e?.shortMessage || e?.message || 'Refund failed');
       } finally {
         btn.disabled = false;
       }
     };
   } catch (e) {
     console.error('Last Round load failed', e);
-    panel.classList.add('hidden');
+    setLRError(e?.reason || e?.shortMessage || e?.message || 'Load failed');
   }
 }
 
