@@ -53,12 +53,20 @@
 
   <div id="roundState" class="round-state">—</div>
 
-  <section id="adminArmPanel" class="admin-panel" style="display:none;">
+  <section id="adminOpenWrap" class="admin-panel">
     <h3>Admin Controls</h3>
-    <div class="admin-actions">
-      <button id="btnArmRound" class="btn-admin">Open New Round</button>
+    <div id="adminOpenState" class="admin-hint">Round inactive — waiting to open</div>
+
+    <div class="admin-open-row">
+      <button id="btnOpenRound" class="btn-admin">Open New Round</button>
+      <button id="btnApproveGCC" class="btn-admin" style="display:none;">Approve GCC</button>
+      <span id="openStatus" class="admin-status"></span>
     </div>
-    <div id="adminArmStatus" class="admin-status"></div>
+
+    <div class="admin-mini">
+      <span id="relayerBalance">—</span>
+      <span id="relayerAllowance">—</span>
+    </div>
   </section>
 
   <main class="stage">
