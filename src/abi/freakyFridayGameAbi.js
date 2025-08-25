@@ -280,19 +280,6 @@ export default [
 	{
 		"inputs": [
 			{
-				"internalType": "enum FreakyFridayAuto.PrizeMode",
-				"name": "newMode",
-				"type": "uint8"
-			}
-		],
-		"name": "setRoundMode",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "address payable",
 				"name": "to",
 				"type": "address"

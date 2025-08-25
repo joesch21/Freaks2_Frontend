@@ -28,37 +28,23 @@
   <!-- Mode Badge -->
   <div id="modeBadge" class="mode-badge">—</div>
 
-  <!-- Admin Panel (hidden by default) -->
   <section id="adminPanel" class="admin-panel" style="display:none;">
     <h3>Admin Controls</h3>
-    <div class="admin-actions">
-      <button id="btnModeStandard" class="btn-admin">Switch to Standard</button>
-      <button id="btnModeJackpot" class="btn-admin danger">Switch to Jackpot</button>
+
+    <div class="row">
+      <button id="btnOpenRound" class="btn-admin">Open New Round</button>
+      <span id="openRoundMsg" class="hint"></span>
     </div>
-    <div id="adminStatus" class="admin-status"></div>
-    <!-- Max Players Control -->
-    <div class="admin-card">
-      <div class="admin-card-header">Max Players</div>
-      <div class="admin-card-body">
-        <div style="margin-bottom:.5rem;">
-          Current: <strong id="apMaxPlayersCurrent">—</strong>
-        </div>
-        <label for="apMaxPlayersInput" class="sr-only">Set max players</label>
-        <input id="apMaxPlayersInput" type="number" min="2" step="1" placeholder="e.g. 50" style="width:8rem;">
-        <button id="apMaxPlayersSave" class="btn-admin">Save</button>
-        <div id="apMaxPlayersStatus" class="admin-status" style="margin-top:.35rem;"></div>
+
+    <div class="row">
+      <div>
+        <div class="label">Max Players</div>
+        <div class="helper">Current: <span id="maxPlayersCurrent">—</span></div>
+        <input id="maxPlayersInput" type="number" min="2" inputmode="numeric" placeholder="e.g. 50"/>
       </div>
+      <button id="btnSaveMax" class="btn-admin">Save</button>
+      <span id="maxPlayersMsg" class="hint"></span>
     </div>
-  </section>
-
-  <div id="roundState" class="round-state">—</div>
-
-  <section id="adminArmPanel" class="admin-panel" style="display:none;">
-    <h3>Admin Controls</h3>
-    <div class="admin-actions">
-      <button id="btnArmRound" class="btn-admin">Open New Round</button>
-    </div>
-    <div id="adminArmStatus" class="admin-status"></div>
   </section>
 
   <main class="stage">
@@ -96,20 +82,12 @@
 
           <button id="connectBtn">🔗 Connect Wallet</button>
           <div id="step2">
-            <!-- Primary one-click CTA -->
-            <button id="joinBtn" class="cta">Join the Ritual</button>
-
-            <!-- Small advanced toggle (collapsed by default) -->
-            <details id="advancedSteps" style="margin-top:.5rem;">
-              <summary>Advanced: use separate steps</summary>
-              <div class="advanced-grid">
-                <button id="btnApproveOnly">Approve GCC</button>
-                <button id="btnEnterOnly">Enter</button>
-              </div>
-            </details>
-
-            <!-- Inline error slot near Step 2 -->
-            <div id="step2Error" class="step2-error" style="display:none;"></div>
+            <button id="btnJoin" class="btn-primary">Join the Ritual</button>
+            <div id="step2Msg" class="hint"></div>
+          </div>
+          <div id="advancedSteps" class="advanced" style="display:none;">
+            <button id="btnApprove" class="btn-secondary">Approve GCC</button>
+            <button id="btnEnter" class="btn-secondary">Enter</button>
           </div>
 
         <div id="status" class="status" role="status">⏳ Waiting for wallet connection...</div>
@@ -131,15 +109,9 @@
           <!-- Friendlier already-joined badge -->
           <span id="ff-joined-badge" class="ff-joined-badge" style="display:none">✅ Already joined this round</span>
 
-          <!-- Timer + progress bar -->
-          <div id="timerContainer" class="ff-timer">
-            <div class="ff-timer-row">
-              <span id="ff-time-label">Round ends in:</span>
-              <span id="countdown">00:00</span>
-            </div>
-            <div class="ff-progress">
-              <div id="ff-progress-bar"></div>
-            </div>
+          <div id="timerContainer" class="timer" style="display:none;">
+            <span>Round ends in:</span>
+            <span id="countdown">--:--:--</span>
           </div>
 
           <p id="winnerContainer" style="display:none;">
@@ -264,19 +236,6 @@
   <script type="module" src="./freakyfriday.js"></script>
   <script type="module" src="./participants-drawer.js"></script>
 
-  <script type="module">
-  import { gameRead } from './frontendcore.js';
-  (async () => {
-    try {
-      const relayer = await gameRead.relayer?.();
-      const entry   = await gameRead.entryAmount?.();
-      const dbg = document.getElementById('debug');
-      if (dbg) {
-        dbg.textContent = `relayer=${relayer}\nentry=${entry ? ethers.formatUnits(entry,18) : 'n/a'}`;
-      }
-    } catch {}
-  })();
-  </script>
 
   <!-- Heat‑warp SVG filter (hidden) -->
   <svg width="0" height="0" style="position:absolute">
