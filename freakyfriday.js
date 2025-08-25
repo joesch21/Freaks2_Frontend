@@ -7,7 +7,6 @@
 // - Chain guard for BSC mainnet (56)
 // - Mobile deep link helper & robust UI handling
 
-import abi from './freakyFridayGameAbi.js';
 import { FREAKY_CONTRACT, GCC_TOKEN, FREAKY_RELAYER } from './frontendinfo.js';
 import { connectWallet as coreConnectWallet, provider, gameContract, gccRead, gccWrite, userAddress as connectedAddr, gameRead, signer } from './frontendcore.js';
 import { mountLastWinner } from './winner.js';
@@ -274,119 +273,23 @@ async function refreshRoundState(game) {
 
 async function showAdminArmIfAuthorized(game, me, relayerAddr) {
   const isAdmin = await isAdminOrRelayer(game, me, relayerAddr);
-  if (!isAdmin) {
-    const panel = document.getElementById('adminOpenWrap');
-    if (panel) panel.style.display = 'none';
-    return false;
-  }
-  await initAdminOpenFlow(provider, signer, game);
-  return true;
+  const panel = document.getElementById('adminArmPanel');
+  if (panel) panel.style.display = isAdmin ? 'block' : 'none';
+  return isAdmin;
 }
 
-function shortErr(e) {
-  return (e?.shortMessage || e?.reason || e?.message || 'Unknown error');
-}
-
-async function getTokenContract(game, signer) {
-  const gccAddr = await game.gcc();
-  const erc20Abi = [
-    "function balanceOf(address) view returns (uint256)",
-    "function allowance(address,address) view returns (uint256)",
-    "function approve(address,uint256) returns (bool)"
-  ];
-  return new ethers.Contract(gccAddr, erc20Abi, signer);
-}
-
-async function refreshAdminOpenUI(provider, signer, game) {
-  const me = await signer.getAddress();
-  const inactive = !(await game.isRoundActive());
-  const wrap = document.getElementById('adminOpenWrap');
-  if (wrap) wrap.style.display = inactive ? 'block' : 'none';
-  if (!inactive) return;
-
-  const gcc = await getTokenContract(game, signer);
-  const need = await game.entryAmount();
-  const bal = await gcc.balanceOf(me);
-  const alw = await gcc.allowance(me, FREAKY_CONTRACT);
-
-  const balEl = document.getElementById('relayerBalance');
-  const alwEl = document.getElementById('relayerAllowance');
-  if (balEl) balEl.textContent = `Relayer GCC balance: ${ethers.formatUnits(bal, 18)}`;
-  if (alwEl) alwEl.textContent = `Allowance to game: ${ethers.formatUnits(alw, 18)}`;
-
-  const canOpen = alw >= need && bal >= need;
-  const btnApprove = document.getElementById('btnApproveGCC');
-  const btnOpen = document.getElementById('btnOpenRound');
-  if (btnApprove) btnApprove.style.display = canOpen ? 'none' : 'inline-block';
-  if (btnOpen) btnOpen.disabled = !canOpen;
-  const hint = document.getElementById('adminOpenState');
-  if (hint) hint.textContent = 'Round inactive — ready to open' + (canOpen ? '' : ' (approve needed)');
-}
-
-function setOpenStatus(msg) {
-  const el = document.getElementById('openStatus');
+function setArmStatus(msg) {
+  const el = document.getElementById('adminArmStatus');
   if (el) el.textContent = msg || '';
 }
 
-function setLoading(buttons, on) {
-  buttons.forEach(b => {
-    if (!b) return;
-    b.disabled = !!on;
-    b.classList.toggle('loading', !!on);
-  });
-}
-
-export async function initAdminOpenFlow(provider, signer, game) {
-  const btnOpen = document.getElementById('btnOpenRound');
-  const btnApprove = document.getElementById('btnApproveGCC');
-  if (!btnOpen || btnOpen.dataset.wired === '1') {
-    await refreshAdminOpenUI(provider, signer, game);
-    return;
-  }
-  btnOpen.dataset.wired = '1';
-  if (btnApprove) btnApprove.dataset.wired = '1';
-
-  await refreshAdminOpenUI(provider, signer, game);
-
-  btnApprove?.addEventListener('click', async () => {
-    try {
-      setOpenStatus('Approving GCC…');
-      setLoading([btnOpen, btnApprove], true);
-      const gcc = await getTokenContract(game, signer);
-      const need = await game.entryAmount();
-      const tx = await gcc.approve(FREAKY_CONTRACT, need);
-      setOpenStatus(`Approve sent: ${tx.hash.slice(0,10)}…`);
-      await tx.wait();
-      setOpenStatus('Approve mined ✔');
-      await refreshAdminOpenUI(provider, signer, game);
-    } catch (e) {
-      console.error('approve failed', e);
-      setOpenStatus('❌ Approve failed — ' + shortErr(e));
-    } finally {
-      setLoading([btnOpen, btnApprove], false);
-    }
-  });
-
-  btnOpen?.addEventListener('click', async () => {
-    try {
-      setOpenStatus('Opening…');
-      setLoading([btnOpen, btnApprove], true);
-      const me = await signer.getAddress();
-      const tx = await game.relayedEnter(me);
-      setOpenStatus(`Open tx: ${tx.hash.slice(0,10)}…`);
-      await tx.wait();
-      setOpenStatus('Round opened ✔');
-      await refreshAdminOpenUI(provider, signer, game);
-      await refreshRoundState(game);
-      await maybeShowTimer(game);
-    } catch (e) {
-      console.error('open failed', e);
-      setOpenStatus('❌ Failed to open — ' + shortErr(e));
-      await refreshAdminOpenUI(provider, signer, game);
-    } finally {
-      setLoading([btnOpen, btnApprove], false);
-    }
-  });
+async function armRound(game, me) {
+  const tx = await game.relayedEnter(me);
+  setArmStatus(`Arming… tx: ${tx.hash}`);
+  await tx.wait();
+  setArmStatus('✅ New round opened');
+  await refreshRoundState(game);
+  await maybeShowTimer(game);
 }
 
 async function getLastResolvedRound(g) {
@@ -614,12 +517,7 @@ export async function connectWallet() {
       await refreshRoundState(gameContract);
       await maybeShowTimer(gameContract);
       gameContract.on('Joined', () => maybeShowTimer(gameContract));
-      gameContract.on('RoundCompleted', async () => {
-        await maybeShowTimer(gameContract);
-        await refreshRoundState(gameContract);
-        const a = (await signer.getAddress?.().catch(() => null)) || connectedAddr;
-        await showAdminArmIfAuthorized(gameContract, a, FREAKY_RELAYER);
-      });
+      gameContract.on('RoundCompleted', () => maybeShowTimer(gameContract));
       const isAdmin = await showAdminArmIfAuthorized(
         gameContract,
         userAddress,
@@ -634,6 +532,7 @@ export async function connectWallet() {
     if (isAdmin) {
       const btnStd = document.getElementById('btnModeStandard');
       const btnJp  = document.getElementById('btnModeJackpot');
+      const armBtn = document.getElementById('btnArmRound');
 
       btnStd?.addEventListener('click', async () => {
         try {
@@ -675,6 +574,19 @@ export async function connectWallet() {
         }
       });
 
+      armBtn?.addEventListener('click', async () => {
+        try {
+          const active = await gameContract.isRoundActive();
+          if (active) { setArmStatus('Already active.'); return; }
+          armBtn.disabled = true;
+          await armRound(gameContract, userAddress);
+        } catch (e) {
+          console.error(e);
+          setArmStatus('❌ Failed to open (check GCC balance/allowance).');
+        } finally {
+          armBtn.disabled = false;
+        }
+      });
     }
 
     await refreshLastRound();
