@@ -264,26 +264,39 @@ export default [
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_relayer",
-				"type": "address"
-			}
-		],
-		"name": "setRelayer",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address payable",
-				"name": "to",
-				"type": "address"
-			},
+        {
+                "inputs": [
+                        {
+                                "internalType": "address",
+                                "name": "_relayer",
+                                "type": "address"
+                        }
+                ],
+                "name": "setRelayer",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+        },
+        {
+                "inputs": [
+                        {
+                                "internalType": "uint8",
+                                "name": "mode",
+                                "type": "uint8"
+                        }
+                ],
+                "name": "setRoundMode",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+        },
+        {
+                "inputs": [
+                        {
+                                "internalType": "address payable",
+                                "name": "to",
+                                "type": "address"
+                        },
 			{
 				"internalType": "uint256",
 				"name": "amount",

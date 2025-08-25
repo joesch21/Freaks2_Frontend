@@ -121,6 +121,8 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .hint { color: #555; margin-top: .35rem; min-height: 1.2em; }
 .error { color: #b91c1c; }
 .success { color: #166534; }
+.status-line { margin-top: .5rem; font-size: .9rem; opacity: .9; }
+.status-line::before { content: "• "; }
 
 .admin-panel {
   margin-top: 1rem; padding: .9rem; border: 1px solid #d9d9d9; border-radius: .6rem;
