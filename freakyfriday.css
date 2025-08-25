@@ -470,7 +470,6 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-badge{font-size:.72rem;background:#20324a;color:#9cc6ff;border:1px solid #2a3e5e;border-radius:999px;padding:.1rem .45rem}
 .ff-copy{background:#1e2430;border:1px solid #2c3546;color:#b7c1d8;border-radius:10px;padding:.25rem .5rem}
 
-.mode-badge{font-weight:700;margin:.5rem 0}
 .last-round{font-size:.9rem}
 .last-round button{margin-top:.5rem}
 .ff-copy:hover{background:#263146}
@@ -598,21 +597,13 @@ body.freaky-mode a { color:#e6b3ff; }
 
 /* Mode badge */
 .mode-badge {
-  display:inline-block;
-  padding: .25rem .5rem;
-  border-radius: .5rem;
-  font-weight: 600;
-  background: #ececec;
-  color: #333;
+  display:inline-block; padding:.25rem .6rem; border-radius:.5rem;
+  font-weight:600; background:#ececec; color:#333;
 }
 
 /* Admin panel */
 .admin-panel {
-  margin-top: 1rem;
-  padding: .75rem;
-  border: 1px solid #d7d7d7;
-  border-radius: .5rem;
-  background: #fff;
+  margin-top:1rem; padding:.75rem; border:1px solid #ddd; border-radius:.5rem; background:#fff;
 }
 .admin-panel input,
 .admin-panel .label,
@@ -623,6 +614,7 @@ body.freaky-mode a { color:#e6b3ff; }
   color: #555;
 }
 .admin-actions { display:flex; gap:.5rem; }
+.admin-status { margin-top:.5rem; min-height:1.2em; }
 .btn-admin {
   padding: .5rem .75rem;
   border: 1px solid #999;
@@ -631,8 +623,8 @@ body.freaky-mode a { color:#e6b3ff; }
   font-weight: 600;
   cursor: pointer;
 }
-.btn-admin:disabled { opacity: .5; cursor: not-allowed; }
-.btn-admin.danger { border-color:#9b1c31; color:#9b1c31; }
+.btn-admin:disabled { opacity:.55; cursor:not-allowed; }
+.btn-admin.danger { border-color:#7b1d6b; color:#7b1d6b; }
 .admin-card { border:1px solid #ddd; border-radius:.5rem; padding:.75rem; margin:.75rem 0; background:#fafafa; }
 .admin-card-header { font-weight:700; margin-bottom:.5rem; }
 .sr-only { position:absolute; left:-9999px; }
@@ -643,9 +635,7 @@ body.freaky-mode {
   color: #f3f2f4;
 }
 body.freaky-mode .mode-badge {
-  background: #2c0a2f;
-  color: #f7d1f7;
-  box-shadow: 0 0 12px rgba(251, 98, 255, .4);
+  background:#2c0a2f; color:#f7d1f7; box-shadow:0 0 12px rgba(251,98,255,.35);
 }
 body.freaky-mode .btn-admin {
   border-color: #f06;

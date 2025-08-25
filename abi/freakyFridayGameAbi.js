@@ -281,7 +281,7 @@ const freakyFridayGameAbi = [
                 "inputs": [
                         {
                                 "internalType": "uint8",
-                                "name": "mode",
+                                "name": "newMode",
                                 "type": "uint8"
                         }
                 ],
@@ -476,9 +476,9 @@ const freakyFridayGameAbi = [
 	{
 		"inputs": [],
 		"name": "getRoundMode",
-		"outputs": [
-			{
-				"internalType": "enum FreakyFridayAuto.PrizeMode",
+                "outputs": [
+                        {
+                                "internalType": "uint8",
 				"name": "",
 				"type": "uint8"
 			}
@@ -633,9 +633,9 @@ const freakyFridayGameAbi = [
 	{
 		"inputs": [],
 		"name": "roundMode",
-		"outputs": [
-			{
-				"internalType": "enum FreakyFridayAuto.PrizeMode",
+                "outputs": [
+                        {
+                                "internalType": "uint8",
 				"name": "",
 				"type": "uint8"
 			}
