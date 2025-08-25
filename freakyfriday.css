@@ -105,6 +105,33 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
   pointer-events: none;
 }
 
+.btn-primary, .btn-secondary, .btn-admin {
+  font-weight: 700;
+  padding: .65rem .9rem;
+  border-radius: .5rem;
+  border: 1px solid rgba(0,0,0,.15);
+  background: #fff;
+  color: #111;
+}
+.btn-primary { background: #4ade80; border-color: #16a34a; }
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-admin:disabled { opacity: .6; cursor: not-allowed; }
+
+.hint { color: #555; margin-top: .35rem; min-height: 1.2em; }
+.error { color: #b91c1c; }
+.success { color: #166534; }
+
+.admin-panel {
+  margin-top: 1rem; padding: .9rem; border: 1px solid #d9d9d9; border-radius: .6rem;
+  background: #fff; color: #111;
+}
+.admin-panel .label { font-weight: 700; color: #111; }
+.admin-panel .helper { color: #333; margin:.25rem 0 .5rem; }
+.admin-panel input { color: #111; background:#fff; border:1px solid #cfcfcf; border-radius:.4rem; padding:.45rem .6rem; }
+
+.timer { margin-top: .75rem; font-variant-numeric: tabular-nums; }
+
 /* Smaller, softer glint */
 .eye-layer .glint {
   width: 22px; height: 22px;
@@ -642,9 +669,3 @@ body.freaky-mode .btn-admin.danger {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.step2-error { margin-top:.5rem; color:#ffb3b3; font-weight:600; }
-.advanced-grid { display:flex; gap:.5rem; margin-top:.5rem; }
-
-/* improve Admin panel contrast */
-.admin-panel { background:#fff; border:1px solid #d7d7d7; }
-.admin-panel, .admin-panel * { color:#111; }

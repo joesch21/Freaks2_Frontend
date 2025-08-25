@@ -1,7 +1,7 @@
 // frontendcore.js (refactored)
 
 // ---- Imports ----
-import { FREAKY_CONTRACT, GCC_TOKEN, FREAKY_RELAYER } from './frontendinfo.js';
+import { FREAKY_CONTRACT, GCC_TOKEN } from './frontendinfo.js';
 import freakyFridayGameAbi from './abi/freakyFridayGameAbi.js';
 import erc20Abi from './erc20Abi.js';
 
@@ -114,4 +114,3 @@ export async function connectWallet() {
 }
 
 // Keep relayer constant available to other modules
-export { FREAKY_RELAYER };
