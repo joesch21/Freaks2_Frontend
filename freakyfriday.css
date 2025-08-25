@@ -320,6 +320,36 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .spinner { width:54px;height:54px;border-radius:50%;border:6px solid #ffffff66;border-top-color:#fff;animation:spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Last Round pull-out panel */
+.last-round {
+  position: fixed; right: 12px; bottom: 92px; z-index: 40;
+  color: #111; background: #fff; border: 1px solid #e3e3e3; border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.15);
+  width: min(92vw, 560px);
+}
+.last-round.hidden { display: none; }
+
+.last-round__toggle {
+  width: 100%; text-align: left; padding: .6rem .8rem; font-weight: 700;
+  background: #fafafa; border: 0; border-bottom: 1px solid #eee; cursor: pointer;
+}
+.last-round__body { padding: .7rem .9rem; }
+.lr-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; margin: .25rem 0; }
+.lr-row code { background: #f5f5f7; border: 1px solid #eee; padding: 0 .33rem; border-radius: 4px; }
+.lr-sep { opacity: .65; }
+.lr-msg { margin-top: .5rem; font-size: .92rem; color: #b00020; }
+
+.btn-claim {
+  margin-top: .6rem; padding: .55rem .85rem; font-weight: 700;
+  border-radius: .5rem; border: 1px solid #7b2cff; background: #fff; color: #7b2cff;
+}
+.btn-claim:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Jackpot theme support */
+body.freaky-mode .last-round__toggle { background: #250026; color: #f6d8ff; border-bottom-color: #3a003d; }
+body.freaky-mode .last-round { background: #130014; color: #f6eefe; border-color: #3a003d; }
+body.freaky-mode .btn-claim { border-color: #ff4db3; color: #ffb3e0; }
+
 /* ============== Dynamic Poster FX ============== */
 @keyframes condor-breathe {
   0%   { transform: scale(1.04) translateZ(0); }
@@ -470,8 +500,6 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 .ff-badge{font-size:.72rem;background:#20324a;color:#9cc6ff;border:1px solid #2a3e5e;border-radius:999px;padding:.1rem .45rem}
 .ff-copy{background:#1e2430;border:1px solid #2c3546;color:#b7c1d8;border-radius:10px;padding:.25rem .5rem}
 
-.last-round{font-size:.9rem}
-.last-round button{margin-top:.5rem}
 .ff-copy:hover{background:#263146}
 
 /* Player count & link */
@@ -540,9 +568,6 @@ button:hover:not(:disabled), button:focus-visible:not(:disabled) {
 }
 
 
-.last-round { padding:.6rem .8rem; border:1px solid #e6e6e6; border-radius:.5rem; background:#fafafa; }
-.last-round .hint { margin-top:.35rem; }
-#claimRefundBtn { margin-top:.5rem; }
 
 .rules__header{
   display:flex; align-items:center; justify-content:space-between;

@@ -133,14 +133,6 @@
             </p>
           </section>
 
-          <!-- Last resolved round info -->
-          <div id="lastRound" class="last-round" style="display:none;margin:.75rem 0;">
-            <div>Last round: <span id="lastRoundNo">—</span> • <span id="lastMode">—</span></div>
-            <div>Winner: <span id="lastWinner">—</span></div>
-            <div>Prize: <span id="lastPrize">—</span> • Refund: <span id="lastRefund">—</span></div>
-            <button id="claimRefundBtn" style="display:none;">💸 Claim your refund</button>
-            <div id="lastRoundError" class="hint" style="display:none;color:#b00;font-size:.9em;"></div>
-          </div>
         </div>
       </div>
     </aside>
@@ -167,6 +159,32 @@
 
   <!-- Dim overlay -->
   <div id="ff-drawer-overlay" class="ff-drawer-overlay" aria-hidden="true"></div>
+
+  <!-- Last Round pull-out -->
+  <aside id="lastRoundPanel" class="last-round hidden" aria-live="polite">
+    <button id="lastRoundToggle" class="last-round__toggle" aria-expanded="false" aria-controls="lastRoundBody">
+      Last Round
+    </button>
+
+    <div id="lastRoundBody" class="last-round__body" hidden>
+      <div class="lr-row">
+        <span>Round:</span> <strong id="lrRound">—</strong>
+        <span class="lr-sep">•</span>
+        <span id="lrMode">—</span>
+      </div>
+      <div class="lr-row">
+        <span>Winner:</span> <code id="lrWinner">—</code>
+      </div>
+      <div class="lr-row">
+        <span>Prize:</span> <strong id="lrPrize">—</strong>
+        <span class="lr-sep">•</span>
+        <span>Refund:</span> <strong id="lrRefund">—</strong>
+      </div>
+
+      <button id="lrClaimBtn" class="btn-claim" hidden>💸 Claim refund</button>
+      <div id="lrMsg" class="lr-msg" hidden></div>
+    </div>
+  </aside>
 
   <div id="mmHintMount"></div>
   <button id="connectBtnBottom" class="btn connect-sticky" aria-label="Connect Wallet (mobile)">
