@@ -1,6 +1,7 @@
 import abi from './abi/freakyFridayGameAbi.js';
 import { FREAKY_CONTRACT, GCC_TOKEN, BSC_CHAIN_ID } from './frontendinfo.js';
 import { startTimer, stopTimer } from './frontendtimer.js';
+import erc20Abi from './erc20Abi.js';
 
 let provider, signer, account, game, gcc;
 
@@ -12,11 +13,7 @@ async function init() {
   signer = await provider.getSigner();
   account = await signer.getAddress();
   game = new ethers.Contract(FREAKY_CONTRACT, abi, signer);
-  gcc  = new ethers.Contract(GCC_TOKEN, [
-    "function approve(address spender, uint256 value) external returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)",
-    "function decimals() view returns (uint8)"
-  ], signer);
+  gcc  = new ethers.Contract(GCC_TOKEN, erc20Abi, signer);
 
   await paintModeAndState();
   wireJoin();
@@ -36,6 +33,25 @@ function setMsg(id, text, cls='') {
   el.classList.remove('error','success');
   if (cls) el.classList.add(cls);
   el.textContent = text || '';
+}
+
+async function getEntryAmount(game) {
+  const amt = await game.entryAmount();
+  return BigInt(amt.toString());
+}
+
+async function getBalances(game, signer, gcc, addr) {
+  const [need, bal, allowance] = await Promise.all([
+    getEntryAmount(game),
+    gcc.balanceOf(addr),
+    gcc.allowance(addr, FREAKY_CONTRACT),
+  ]);
+  return { need: BigInt(need), bal: BigInt(bal), allowance: BigInt(allowance) };
+}
+
+function setOpenStatus(msg) {
+  const el = document.getElementById('openStatus');
+  if (el) el.textContent = msg || '';
 }
 
 async function paintModeAndState() {
@@ -162,26 +178,40 @@ async function wireAdmin() {
   const btnOpen = document.getElementById('btnOpenRound');
   if (btnOpen) {
     btnOpen.onclick = async () => {
-      const msgId = 'openRoundMsg';
-      setMsg(msgId, 'Opening…');
       try {
-        const active = await game.isRoundActive();
-        if (active) { setMsg(msgId, 'Already active.', 'success'); return; }
+        btnOpen.disabled = true;
+        setOpenStatus('Checking balance & allowance…');
 
-        const need  = BigInt(await game.entryAmount());
-        const allow = await gcc.allowance(account, FREAKY_CONTRACT);
-        if (allow < need) {
-          const txA = await gcc.approve(FREAKY_CONTRACT, need);
-          await txA.wait();
+        const me = account;
+        const [adminAddr, relayerAddr] = await Promise.all([game.admin(), game.relayer()]);
+        const isAdminAddr = [adminAddr, relayerAddr].map(a => a?.toLowerCase()).includes(me.toLowerCase());
+        if (!isAdminAddr) { setOpenStatus('Not authorized.'); return; }
+
+        const active = await game.isRoundActive();
+        if (active) { setOpenStatus('Already active.'); return; }
+
+        const { need, bal, allowance } = await getBalances(game, signer, gcc, me);
+
+        if (bal < need) { setOpenStatus('Insufficient GCC balance to open a round.'); return; }
+
+        if (allowance < need) {
+          setOpenStatus('Approving GCC…');
+          const tx1 = await gcc.approve(FREAKY_CONTRACT, need);
+          await tx1.wait();
         }
 
-        const tx = await game.relayedEnter(account);
-        await tx.wait();
-        setMsg(msgId, '✅ Round opened.', 'success');
+        setOpenStatus('Opening round…');
+        const tx2 = await game.relayedEnter(me);
+        setOpenStatus(`Tx sent: ${tx2.hash} (waiting)…`);
+        await tx2.wait();
+
+        setOpenStatus('✅ Round opened!');
         await paintModeAndState();
       } catch (e) {
         console.error('Open round failed', e);
-        setMsg(msgId, `❌ Failed to open (${friendlyError(e)}).`, 'error');
+        setOpenStatus(`❌ Failed to open — ${e.reason || e.shortMessage || e.message}`);
+      } finally {
+        btnOpen.disabled = false;
       }
     };
   }
